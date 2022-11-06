@@ -32,6 +32,10 @@ public:
     };
 
 private:
+    Storage(const Storage&) = delete;
+    Storage(Storage&&) = delete;
+
+private:
     NodePtr m_root;
 
     std::string m_name;

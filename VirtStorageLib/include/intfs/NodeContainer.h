@@ -7,6 +7,7 @@ template<typename NodeT>
 struct INodeContainer
 {
     using NodePtr = std::shared_ptr<NodeT>;
+    using NodeWeakPtr = typename std::shared_ptr<NodeT>::weak_type;
     
     using ForEachFunctorType = std::function<void(NodePtr)>;
     using FindIfFunctorType = std::function<bool(NodePtr)>;

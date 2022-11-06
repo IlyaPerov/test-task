@@ -5,6 +5,10 @@
 
 #include "Types.h"
 #include "VolumeNode.h"
+#include "intfs\ProxyProvider.h"
+
+#include "VolumeNodeBaseImpl.h"
+#include "VolumeNodeProxyImpl.h"
 
 
 //
@@ -13,7 +17,9 @@
 
 template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final:
-	public IVolumeNode<KeyT, ValueHolderT>
+	public VolumeNodeBaseImpl<KeyT, ValueHolderT>,
+	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
+	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>
 {
 
 public:
@@ -28,11 +34,7 @@ public:
 
 	static NodePtr CreateInstance(const std::string& name, Priority priority)
 	{
-		return std::make_shared<VolumeNodeImpl>(name, priority);
-	}
-	
-	VolumeNodeImpl(const std::string& name, Priority priority) : m_name{ name }, m_priority{ priority }
-	{
+		return std::shared_ptr<VolumeNodeImpl>(new VolumeNodeImpl(name, priority));
 	}
 
 	// INode
@@ -41,41 +43,41 @@ public:
 		return m_name;
 	}
 
-	void Insert(const KeyT& Key, const ValueHolderT& Value) override
+	void Insert(const KeyT& key, const ValueHolderT& value) override
 	{
-		m_dict.insert_or_assign(Key, Value);
+		m_dict.insert_or_assign(key, value);
 	}
 
-	void Insert(const KeyT& Key, ValueHolderT&& Value) override
+	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		m_dict.insert_or_assign(Key, move(Value));
+		m_dict.insert_or_assign(key, move(value));
 	}
 
-	virtual void Erase(const KeyT& Key) override
+	virtual void Erase(const KeyT& key) override
 	{
-		m_dict.erase(Key);
+		m_dict.erase(key);
 	}
 
-	bool Find(const KeyT& Key, ValueHolderT& Value) const override
+	bool Find(const KeyT& key, ValueHolderT& value) const override
 	{
-		auto it = m_dict.find(Key);
+		auto it = m_dict.find(key);
 		if (it == m_dict.end())
 			return false;
 
-		Value = it->second;
+		value = it->second;
 
 		return true;
 	}
 
-	bool Replace(const KeyT& Key, const ValueHolderT& Value) override
+	bool Replace(const KeyT& key, const ValueHolderT& value) override
 	{
-		auto resIt = m_dict.insert({ Key, Value });
+		auto resIt = m_dict.insert({ key, value });
 		return resIt.second;
 	}
 	
-	bool Replace(const KeyT& Key, ValueHolderT&& Value) override
+	bool Replace(const KeyT& key, ValueHolderT&& value) override
 	{
-		auto resIt = m_dict.insert({ Key, Value });
+		auto resIt = m_dict.insert({ key, value });
 		return resIt.second;
 	}
 
@@ -111,6 +113,21 @@ public:
 		
 		m_children.erase(removedEndIt, m_children.end());
 	}
+
+	// IProxyProvider
+	NodePtr GetProxy() override
+	{
+		return VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this());
+	}
+
+private:
+	VolumeNodeImpl(const std::string& name, Priority priority) : m_name{ name }, m_priority{ priority }
+	{
+	}
+
+	VolumeNodeImpl(const VolumeNodeImpl&) = delete;
+	VolumeNodeImpl(VolumeNodeImpl&&) = delete;
+
 
 private:
 	using DictType = std::unordered_map<KeyT, ValueHolderT>;

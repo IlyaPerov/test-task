@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include "Types.h"
 #include "Node.h"
 #include "NodeContainer.h"
@@ -14,5 +13,5 @@ struct IVolumeNode :
 
     virtual ~IVolumeNode() = default;
 
-    virtual Priority GetPriority() const noexcept = 0;
+    virtual Priority GetPriority() const = 0;
 };

@@ -23,7 +23,8 @@ class Mounter;
 
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
-	public IVirtualNode<KeyT, ValueHolderT>
+	public IVirtualNode<KeyT, ValueHolderT>,
+	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>
 {
 
 public:
@@ -41,11 +42,7 @@ public:
 
 	static NodePtr CreateInstance(const std::string& name)
 	{
-		return std::make_shared<VirtualNodeImpl>(name);
-	}
-
-	VirtualNodeImpl(const std::string& name) : m_name{ name }, m_mounter(this)
-	{
+		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name));
 	}
 
 	// INode
@@ -54,34 +51,34 @@ public:
 		return m_name;
 	}
 
-	void Insert(const KeyT& Key, const ValueHolderT& Value) override
+	void Insert(const KeyT& key, const ValueHolderT& value) override
 	{
-		m_mounter.Insert(Key, Value);
+		m_mounter.Insert(key, value);
 	}
 
-	void Insert(const KeyT& Key, ValueHolderT&& Value) override
+	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		m_mounter.Insert(Key, Value);
+		m_mounter.Insert(key, value);
 	}
 
-	virtual void Erase(const KeyT& Key) override
+	virtual void Erase(const KeyT& key) override
 	{
-		m_mounter.Erase(Key);
+		m_mounter.Erase(key);
 	}
 
-	bool Find(const KeyT& Key, ValueHolderT& Value) const override
+	bool Find(const KeyT& key, ValueHolderT& value) const override
 	{
-		return m_mounter.Find(Key, Value);
+		return m_mounter.Find(key, value);
 	}
 
-	bool Replace(const KeyT& Key, const ValueHolderT& Value)
+	bool Replace(const KeyT& key, const ValueHolderT& value)
 	{
-		return m_mounter.Replace(Key, Value);
+		return m_mounter.Replace(key, value);
 	}
 
-	bool Replace(const KeyT& Key, ValueHolderT&& Value)
+	bool Replace(const KeyT& key, ValueHolderT&& value)
 	{
-		return m_mounter.Replace(Key, Value);
+		return m_mounter.Replace(key, value);
 	}
 
 	// INodeContainer
@@ -130,6 +127,14 @@ public:
 	{
 		m_mounter.RemoveNode(node);
 	}
+
+private:
+	VirtualNodeImpl(const std::string& name) : m_name{ name }, m_mounter{ this }
+	{
+	}
+	
+	VirtualNodeImpl(const VirtualNodeImpl&) = delete;
+	VirtualNodeImpl(VirtualNodeImpl&&) = delete;
 
 private:
 	using ChildrenContainerType = std::vector<NodePtr>;
@@ -300,6 +305,8 @@ public:
 
 	void AddNode(VolumeNodePtr volumeNode)
 	{
+		//TODO: check name 
+		
 		m_assistants.emplace_back(m_owner, volumeNode);
 		Invalidate();
 	}
@@ -318,75 +325,75 @@ public:
 		}
 	}
 
-	void Insert(const KeyT& Key, const ValueHolderT& Value)
+	void Insert(const KeyT& key, const ValueHolderT& value)
 	{
 		Validate();
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Replace(Key, Value))
+			if (assistant.GetNode()->Replace(key, value))
 				return;
 		}
 
 		if (m_assistants.size() > 0)
-			m_assistants.front().GetNode()->Insert(Key, Value);
+			m_assistants.front().GetNode()->Insert(key, value);
 	}
 
-	void Insert(const KeyT& Key, ValueHolderT&& Value)
+	void Insert(const KeyT& key, ValueHolderT&& value)
 	{
 		Validate();
 		
 		for (auto assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Replace(Key, Value))
+			if (assistant.GetNode()->Replace(key, value))
 				return;
 		}
 
 		if (m_assistants.size() > 0)
-			m_assistants[0].GetNode()->Insert(Key, Value);
+			m_assistants[0].GetNode()->Insert(key, value);
 	}
 
-	void Erase(const KeyT& Key)
+	void Erase(const KeyT& key)
 	{
 		Validate();
 		
 		for (auto& assistant : m_assistants)
-			assistant.GetNode()->Erase(Key);
+			assistant.GetNode()->Erase(key);
 	}
 
-	bool Find(const KeyT& Key, ValueHolderT& Value) const
+	bool Find(const KeyT& key, ValueHolderT& value) const
 	{
 		Validate();
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Find(Key, Value))
+			if (assistant.GetNode()->Find(key, value))
 				return true;
 		}
 
 		return false;
 	}
 
-	bool Replace(const KeyT& Key, const ValueHolderT& Value)
+	bool Replace(const KeyT& key, const ValueHolderT& value)
 	{
 		Validate();
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Replace(Key, Value))
+			if (assistant.GetNode()->Replace(key, value))
 				return true;
 		}
 
 		return false;
 	}
 
-	bool Replace(const KeyT& Key, ValueHolderT&& Value)
+	bool Replace(const KeyT& key, ValueHolderT&& value)
 	{
 		Validate();
 		
 		for (auto assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Replace(Key, Value))
+			if (assistant.GetNode()->Replace(key, value))
 				return true;
 		}
 

@@ -5,12 +5,12 @@ struct INode
 {
     virtual ~INode() = default;
 
-    virtual const std::string& GetName() const noexcept = 0;
-    
-    virtual void Insert(const KeyT& Key, const ValueHolderT& Value) = 0;
-    virtual void Insert(const KeyT& Key, ValueHolderT&& Value) = 0;
-    virtual void Erase(const KeyT& Key) = 0;
-    virtual bool Find(const KeyT& Key, ValueHolderT& Value) const = 0;
-    virtual bool Replace(const KeyT& Key, const ValueHolderT& Value) = 0;
-    virtual bool Replace(const KeyT& Key, ValueHolderT&& Value) = 0;
+    virtual const std::string& GetName() const = 0;
+
+    virtual void Insert(const KeyT& key, const ValueHolderT& value) = 0;
+    virtual void Insert(const KeyT& key, ValueHolderT&& value) = 0;
+    virtual void Erase(const KeyT& key) = 0;
+    virtual bool Find(const KeyT& key, ValueHolderT& value) const = 0;
+    virtual bool Replace(const KeyT& key, const ValueHolderT& value) = 0;
+    virtual bool Replace(const KeyT& key, ValueHolderT&& value) = 0;
 };

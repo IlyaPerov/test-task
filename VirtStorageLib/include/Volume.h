@@ -39,6 +39,10 @@ public:
     };
 
 private:
+    Volume(const Volume&) = delete;
+    Volume(Volume&&) = delete;
+
+private:
     NodePtr m_root;
 
     Priority m_priority;
