@@ -1,10 +1,17 @@
 #pragma once
 
-template<typename ProxiedObjectT>
+struct IProxy
+{
+    virtual ~IProxy() = default;
+    
+    virtual void Disconnect() = 0;
+};
+
+template<typename ProxiedNodeT>
 struct IProxyProvider
 {
 
     virtual ~IProxyProvider() = default;
 
-    virtual typename ProxiedObjectT::NodePtr GetProxy() = 0;
+    virtual typename ProxiedNodeT::NodePtr GetProxy() = 0;
 };

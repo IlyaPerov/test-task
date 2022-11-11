@@ -2,13 +2,15 @@
 
 #include "Types.h"
 #include "../src/VirtualNodeImpl.h"
+#include "../src/utils/Noncopyable.h"
 
 //
 // Storage
 //
 
 template<typename KeyT, typename ValueHolderT = ValueVariant>
-class Storage final
+class Storage final:
+    private NonCopyable
 {
 public:
     using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
@@ -30,10 +32,6 @@ public:
     {
         return m_root;
     };
-
-private:
-    Storage(const Storage&) = delete;
-    Storage(Storage&&) = delete;
 
 private:
     NodePtr m_root;
