@@ -189,21 +189,6 @@ public:
 		return m_id;
 	}
 
-	void RemoveNodeIfUnmounted(VirtualNodeImpl* node)
-	{
-		//for (auto it = m_children.begin(); it != m_children.end(); it++)
-		//{
-		//	if (node->GetId() == (*it)->GetId())
-		//	{
-		//		if (node->m_mounter.IsUnmounted())
-		//		{
-		//			m_children.erase(it);
-		//			break;
-		//		}
-		//	}
-		//}
-	}
-
 private:
 	VirtualNodeImpl(const std::string& name, VirtualNodeImplWeakPtr parent = {}) :
 		m_name{ name }, m_parent{parent}, m_mounter{ this },
@@ -311,14 +296,7 @@ public:
 
 	void OnNodeRemoved(VolumeNodePtr node) override
 	{
-		for (auto virtualNodeForVolumeNode : m_nodes)
-		{
-			if (virtualNodeForVolumeNode.volumeNode->GetName() == node->GetName())
-			{
-				virtualNodeForVolumeNode.virtualNode->Unmount(virtualNodeForVolumeNode.volumeNode);
-				//m_owner->RemoveNodeIfUnmounted(std::dynamic_pointer_cast<VirtualNodeImplType>(virtualNodeForVolumeNode.virtualNode).get());
-			}
-		}
+		//TODO: consider to remove
 	}
 
 private:
@@ -730,14 +708,6 @@ private:
 			{
 				return left->GetNode()->GetPriority() > right->GetNode()->GetPriority();
 			});
-
-		//if (IsUnmounted())
-		//if (m_assistants.size() == 0)
-		//{
-		//	//auto parent = m_owner->m_parent.lock();
-		//	//if (parent)
-		//	//	parent->RemoveNodeIfUnmounted(m_owner);
-		//}
 
 		m_state = ValidatingState::Validated;
 	}

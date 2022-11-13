@@ -61,7 +61,7 @@ public:
 
 	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		m_dict.insert_or_assign(key, move(value));
+		//m_dict.insert_or_assign(key, move(value));
 	}
 
 	virtual void Erase(const KeyT& key) override
@@ -147,6 +147,7 @@ public:
 			auto node = *it;
 			if (f(node->GetProxy()))
 			{
+				//TODO: consider to remove the event
 				//m_subscriberHolder.OnNodeRemoved(node);
 				
 				node->MakeOrphan();
