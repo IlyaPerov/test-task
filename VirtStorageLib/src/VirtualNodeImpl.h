@@ -8,7 +8,9 @@
 #include "Types.h"
 #include "VirtualNode.h"
 #include "utils/Noncopyable.h"
+#include "utils/UniqueIdGenerator.h"
 #include "intfs/NodeEvents.h"
+#include "intfs/NodeId.h"
 
 
 // Forward declarations:
@@ -27,11 +29,16 @@ class Mounter;
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
 	public IVirtualNode<KeyT, ValueHolderT>,
+	public INodeId,
 	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>,
 	private NonCopyable
 {
 
 public:
+	using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
+	using VirtualNodeImplPtr = std::shared_ptr<VirtualNodeImplType>;
+	using VirtualNodeImplWeakPtr = std::weak_ptr<VirtualNodeImplType>;
+
 	using NodeType = IVirtualNode<KeyT, ValueHolderT>;
 	using typename INodeContainer<NodeType>::NodePtr;
 
@@ -52,9 +59,9 @@ public:
 
 public:
 
-	static NodePtr CreateInstance(const std::string& name)
+	static VirtualNodeImplPtr CreateInstance(const std::string& name)
 	{
-		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name));
+		return CreateInstance(name, {});
 	}
 
 	// INode
@@ -103,15 +110,30 @@ public:
 	{
 		m_mounter.Mount();
 		
-		m_children.push_back(CreateInstance(name));
+		m_children.push_back(CreateInstance(name, this->shared_from_this()));
 		return m_children.back();
 	}
 
+	
+	//TODO: Refactor and spread!
 	void ForEachChild(ForEachFunctorType f) override
 	{
 		m_mounter.Mount();
-		
-		std::for_each(m_children.begin(), m_children.end(), f);
+
+		for (auto it = m_children.begin(); it != m_children.end();)
+		{
+			auto childNode = *it;
+
+			if (childNode->IsEntirelyUnmounted())
+			{
+				it = m_children.erase(it);
+				continue;
+			}
+			else
+				it++;
+
+			f(childNode);
+		}
 	}
 
 	NodePtr FindChildIf(FindIfFunctorType f)  override
@@ -161,22 +183,56 @@ public:
 		m_mounter.UnmountIf(f);
 	}
 
-private:
-	VirtualNodeImpl(const std::string& name) : m_name{ name }, m_mounter{ this }
+	// INodeId
+	NodeId GetId() override
 	{
+		return m_id;
+	}
+
+	void RemoveNodeIfUnmounted(VirtualNodeImpl* node)
+	{
+		//for (auto it = m_children.begin(); it != m_children.end(); it++)
+		//{
+		//	if (node->GetId() == (*it)->GetId())
+		//	{
+		//		if (node->m_mounter.IsUnmounted())
+		//		{
+		//			m_children.erase(it);
+		//			break;
+		//		}
+		//	}
+		//}
 	}
 
 private:
-	using ChildrenContainerType = std::vector<NodePtr>;
-	using VolumeNodesContainerType = std::vector<VolumeNodePtr>;
-	//friend NodeMountAssistant;
-	
+	VirtualNodeImpl(const std::string& name, VirtualNodeImplWeakPtr parent = {}) :
+		m_name{ name }, m_parent{parent}, m_mounter{ this },
+		m_id(UniqueIdGenerator::GetNextUniquId())
+	{
+	}
+
+	static VirtualNodeImplPtr CreateInstance(const std::string& name, VirtualNodeImplWeakPtr parent)
+	{
+		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name, parent));
+	}
+
+	bool IsEntirelyUnmounted()
+	{
+		return m_mounter.IsEntirelyUnmounted();
+	}
+
 private:
+	using ChildrenContainerType = std::list<VirtualNodeImplPtr>;
+	using VolumeNodesContainerType = std::vector<VolumeNodePtr>;
+
 	std::string m_name;
 	ChildrenContainerType m_children;
-	//VolumeNodesContainerType m_volumeNodes;
+	const NodeId m_id;
 
-	Mounter<KeyT, ValueHolderT> m_mounter;
+	mutable Mounter<KeyT, ValueHolderT> m_mounter;
+
+	public:
+		VirtualNodeImplWeakPtr m_parent;
 };
 
 //
@@ -197,14 +253,6 @@ public:
 	using VolumeNodePtr = typename VirtualNodeImpl<KeyT, ValueHolderT>::VolumeNodePtr;
 
 	using Ptr = std::shared_ptr<NodeMountAssistant>;
-
-	enum class MountState : uint8_t
-	{
-		Mounted,
-		Unmounted,
-		NeedToMount,
-		NeedToUnmount
-	};
 
 public:
 	~NodeMountAssistant() override
@@ -263,6 +311,14 @@ public:
 
 	void OnNodeRemoved(VolumeNodePtr node) override
 	{
+		for (auto virtualNodeForVolumeNode : m_nodes)
+		{
+			if (virtualNodeForVolumeNode.volumeNode->GetName() == node->GetName())
+			{
+				virtualNodeForVolumeNode.virtualNode->Unmount(virtualNodeForVolumeNode.volumeNode);
+				//m_owner->RemoveNodeIfUnmounted(std::dynamic_pointer_cast<VirtualNodeImplType>(virtualNodeForVolumeNode.virtualNode).get());
+			}
+		}
 	}
 
 private:
@@ -275,10 +331,10 @@ private:
 	void Mount()
 	{
 		assert(m_state == MountState::NeedToMount);
+		assert(m_subscriptionCookie == INVALID_COOKIE);
 
 		std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
-		assert(m_subscriptionCookie == 0);
-		
+				
 		m_subscriptionCookie = subscription->RegisterSubscriber(this->shared_from_this());
 		
 		MountChildren();
@@ -289,8 +345,15 @@ private:
 	{
 		assert(m_state == MountState::NeedToUnmount);
 
-		std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
-		subscription->UnregisterSubscriber(m_subscriptionCookie);
+		try
+		{
+			std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
+			assert(subscription);
+			subscription->UnregisterSubscriber(m_subscriptionCookie);
+		}
+		catch (ActionOnRemovedNodeException&)
+		{
+		}
 		
 		UnmountChildren();
 		m_volumeNode = nullptr;
@@ -340,6 +403,14 @@ private:
 	}
 
 private:
+	enum class MountState : uint8_t
+	{
+		Mounted,
+		Unmounted,
+		NeedToMount,
+		NeedToUnmount
+	};
+
 	struct VirtualNodeForVolumeNode
 	{
 		VirtualNodePtr virtualNode;
@@ -351,7 +422,7 @@ private:
 	
 	std::vector<VirtualNodeForVolumeNode> m_nodes;
 	std::atomic<MountState> m_state = MountState::NeedToMount;
-	Cookie m_subscriptionCookie = 0;
+	Cookie m_subscriptionCookie = INVALID_COOKIE;
 
 };
 
@@ -412,8 +483,16 @@ public:
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant->GetNode()->Replace(key, value))
-				return;
+			try
+			{
+				if (assistant->GetNode()->Replace(key, value))
+					return;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 		if (m_assistants.size() > 0)
@@ -424,10 +503,18 @@ public:
 	{
 		Validate();
 		
-		for (auto assistant : m_assistants)
+		for (auto& assistant : m_assistants)
 		{
-			if (assistant.GetNode()->Replace(key, value))
-				return;
+			try
+			{
+				if (assistant->GetNode()->Replace(key, value))
+					return;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 		if (m_assistants.size() > 0)
@@ -439,17 +526,35 @@ public:
 		Validate();
 		
 		for (auto& assistant : m_assistants)
-			assistant->GetNode()->Erase(key);
+		{
+			try
+			{
+				assistant->GetNode()->Erase(key);
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
+		}
 	}
 
-	bool Find(const KeyT& key, ValueHolderT& value) const
+	bool Find(const KeyT& key, ValueHolderT& value) 
 	{
 		Validate();
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant->GetNode()->Find(key, value))
-				return true;
+			try
+			{
+				if (assistant->GetNode()->Find(key, value))
+					return true;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 		return false;
@@ -461,8 +566,16 @@ public:
 		
 		for (auto& assistant : m_assistants)
 		{
-			if (assistant->GetNode()->Replace(key, value))
-				return true;
+			try
+			{
+				if (assistant->GetNode()->Replace(key, value))
+					return true;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 		return false;
@@ -472,10 +585,18 @@ public:
 	{
 		Validate();
 		
-		for (auto assistant : m_assistants)
+		for (auto& assistant : m_assistants)
 		{
-			if (assistant->GetNode()->Replace(key, value))
-				return true;
+			try
+			{
+				if (assistant->GetNode()->Replace(key, value))
+					return true;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 		return false;
@@ -485,13 +606,20 @@ public:
 	{
 		Validate();
 
-		for (auto assistant : m_assistants)
+		for (auto& assistant : m_assistants)
 		{
-			assistant->GetNode()->ForEachKeyValue(f);
+			try
+			{
+				assistant->GetNode()->ForEachKeyValue(f);
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
 
 	}
-
 
 	void Mount()
 	{
@@ -512,8 +640,6 @@ public:
 
 	void ForEachMounted(ForEachMountedFunctorType f)  override
 	{
-		//for (auto mounted : m_assistants)
-		//	f(assistant.GetNode());
 		std::for_each(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
 			{
@@ -553,6 +679,22 @@ public:
 		//TODO
 	}
 
+	bool IsEntirelyUnmounted()
+	{
+		auto res = true;
+
+		for (auto assistant : m_assistants)
+		{
+			if (assistant->GetNode()->Exists() == false)
+			{
+				res = false;
+				break;
+			}
+		}
+		
+		return res;
+	}
+
 private:
 	bool NodesEqual(VolumeNodeType* node1, VolumeNodeType* node2)
 	{
@@ -588,6 +730,14 @@ private:
 			{
 				return left->GetNode()->GetPriority() > right->GetNode()->GetPriority();
 			});
+
+		//if (IsUnmounted())
+		//if (m_assistants.size() == 0)
+		//{
+		//	//auto parent = m_owner->m_parent.lock();
+		//	//if (parent)
+		//	//	parent->RemoveNodeIfUnmounted(m_owner);
+		//}
 
 		m_state = ValidatingState::Validated;
 	}

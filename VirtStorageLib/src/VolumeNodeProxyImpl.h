@@ -140,6 +140,13 @@ public:
 		m_owner.reset();
 	}
 
+	// INodelifespan
+	bool Exists() const noexcept
+	{
+		return m_owner.lock() != nullptr;
+	}
+
+
 private:
 	VolumeNodeProxyImpl(VolumeNodeImplWeakPtr owner) : m_owner{ owner }
 	{

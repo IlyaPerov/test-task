@@ -2,12 +2,14 @@
 
 #include "Types.h"
 #include "Node.h"
+#include "NodeLifespan.h"
 #include "NodeContainer.h"
 
 template<typename KeyT, typename ValueHolderT>
 struct IVolumeNode :
     INode<KeyT, ValueHolderT>, 
-    INodeContainer<IVolumeNode<KeyT, ValueHolderT>>
+    INodeContainer<IVolumeNode<KeyT, ValueHolderT>>,
+    INodeLifespan
 {
     using INodeContainer<IVolumeNode<KeyT, ValueHolderT>>::NodePtr;
 

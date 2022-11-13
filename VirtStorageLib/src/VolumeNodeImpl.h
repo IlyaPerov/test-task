@@ -112,40 +112,45 @@ public:
 		m_children.push_back(CreateInstance(name, GetPriority()));
 		auto child = m_children.back();
 		
-		m_subscriberHolder.OnNodeAdded(child);
+		m_subscriberHolder.OnNodeAdded(child->GetProxy());
 
-		return child;
+		return child->GetProxy();
 	}
 
 	void ForEachChild(ForEachFunctorType f) override
 	{
-		std::for_each(m_children.begin(), m_children.end(), f);
+		std::for_each(m_children.begin(), m_children.end(),
+			[f](auto node)
+			{
+				f(node->GetProxy());
+			});
 	}
 	
 	NodePtr FindChildIf(FindIfFunctorType f)  override
 	{
-		auto findIt = std::find_if(m_children.begin(), m_children.end(), f);
+		auto findIt = std::find_if(m_children.begin(), m_children.end(), 
+			[f](auto node)
+			{
+				return f(node->GetProxy());
+			});
+		
 		if (findIt != m_children.end())
-			return *m_children.end();	
+			return (*findIt)->GetProxy();
 		
 		return nullptr;
 	}
 	
 	void RemoveChildIf(RemoveIfFunctorType f)  override
 	{
-		//auto removedEndIt = std::remove_if(m_children.begin(), m_children.end(), f);
-		//m_children.erase(removedEndIt, m_children.end());
-
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (f(*it))
+			auto node = *it;
+			if (f(node->GetProxy()))
 			{
-				auto node = *it;
-				it = m_children.erase(it);
-
 				//m_subscriberHolder.OnNodeRemoved(node);
+				
 				node->MakeOrphan();
-
+				it = m_children.erase(it);
 			}
 			else
 				it++;
@@ -179,9 +184,18 @@ public:
 	virtual void MakeOrphan() override
 	{
 		if (m_proxy)
+		{
 			m_proxy->Disconnect();
+			m_proxy = nullptr;
+		}
 		for (auto child : m_children)
 			child->MakeOrphan();
+	}
+
+	// INodelifespan
+	bool Exists() const noexcept
+	{
+		return m_proxy != nullptr;
 	}
 
 private:
@@ -231,7 +245,7 @@ private:
 	private:
 		using SubscribersContainerType = std::unordered_map<Cookie, NodeEventsPtr>;
 		SubscribersContainerType m_subscribers;
-		Cookie m_currentCookie{};
+		Cookie m_currentCookie = 1;
 	};
 
 	SubscriberHolder m_subscriberHolder;

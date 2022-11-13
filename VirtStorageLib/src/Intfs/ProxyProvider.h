@@ -4,7 +4,7 @@ struct IProxy
 {
     virtual ~IProxy() = default;
     
-    virtual void Disconnect() = 0;
+    virtual void Disconnect() noexcept = 0;
 };
 
 template<typename ProxiedNodeT>
