@@ -2,9 +2,19 @@
 
 #include "Types.h"
 
+namespace vs
+{
+
+namespace internal
+{
+
 struct INodeId
 {
-    virtual ~INodeId() = default;
-    
-    virtual NodeId GetId() = 0;
+	virtual ~INodeId() = default;
+
+	virtual NodeId GetId() const = 0;
 };
+
+} //namespace internal
+
+} //namespace vs

@@ -1,5 +1,11 @@
 #pragma once
 
+namespace vs
+{
+
+namespace internal
+{
+
 struct IProxy
 {
     virtual ~IProxy() = default;
@@ -15,3 +21,7 @@ struct IProxyProvider
 
     virtual typename ProxiedNodeT::NodePtr GetProxy() = 0;
 };
+
+} //namespace internal
+
+} //namespace vs

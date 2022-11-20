@@ -11,7 +11,15 @@
 
 #include "VolumeNodeBaseImpl.h"
 #include "VolumeNodeProxyImpl.h"
+#include "NodeIdImpl.h"
 
+#include "utils/NameRegistrar.h"
+
+namespace vs
+{
+
+namespace internal
+{
 
 //
 // VolumeNodeImpl
@@ -19,22 +27,23 @@
 
 template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final :
-	public VolumeNodeBaseImpl<KeyT, ValueHolderT>,
+	public NodeIdImpl<VolumeNodeBaseImpl<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
 	public INodeInternal,
-	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>
+	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>,
+	private utils::NameRegistrar
 {
 
 public:
 	using VolumeNodeImplType = VolumeNodeImpl<KeyT, ValueHolderT>;
 	using VolumeNodeImplPtr = std::shared_ptr<VolumeNodeImplType>;
-	
+
 	using NodeType = IVolumeNode<KeyT, ValueHolderT>;
-	
+
 	using typename NodeType::ForEachKeyValueFunctorType;
-	
+
 	using typename INodeContainer<NodeType>::NodePtr;
-	
+
 	using typename INodeContainer<NodeType>::ForEachFunctorType;
 	using typename INodeContainer<NodeType>::FindIfFunctorType;
 	using typename INodeContainer<NodeType>::RemoveIfFunctorType;
@@ -56,22 +65,22 @@ public:
 
 	void Insert(const KeyT& key, const ValueHolderT& value) override
 	{
-		m_dict.insert_or_assign(key, value);
+		InsertImpl(key, value);
 	}
 
 	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		//m_dict.insert_or_assign(key, move(value));
+		InsertImpl(key, std::move(value));
 	}
 
-	virtual void Erase(const KeyT& key) override
+	void Erase(const KeyT& key) override
 	{
 		m_dict.erase(key);
 	}
 
 	bool Find(const KeyT& key, ValueHolderT& value) const override
 	{
-		auto it = m_dict.find(key);
+		auto it = FindImpl(key);
 		if (it == m_dict.end())
 			return false;
 
@@ -80,21 +89,38 @@ public:
 		return true;
 	}
 
-	bool Replace(const KeyT& key, const ValueHolderT& value) override
+	bool Contains(const KeyT& key) const override
 	{
-		auto resIt = m_dict.insert({ key, value });
-		return resIt.second;
-	}
-	
-	bool Replace(const KeyT& key, ValueHolderT&& value) override
-	{
-		auto resIt = m_dict.insert({ key, value });
-		return resIt.second;
+		auto it = FindImpl(key);
+		if (it == m_dict.end())
+			return false;
+
+		return true;
 	}
 
-	void ForEachKeyValue(ForEachKeyValueFunctorType f) override
+	bool TryInsert(const KeyT& key, const ValueHolderT& value) override
 	{
-		std::for_each(m_dict.begin(), m_dict.end(), [f](auto it)
+		return TryInsertImpl(key, value);
+	}
+
+	bool TryInsert(const KeyT& key, ValueHolderT&& value) override
+	{
+		return TryInsertImpl(key, std::move(value));
+	}
+
+	bool Replace(const KeyT& key, const ValueHolderT& value) override
+	{
+		return ReplaceImpl(key, value);
+	}
+
+	bool Replace(const KeyT& key, ValueHolderT&& value) override
+	{
+		return ReplaceImpl(key, std::move(value));
+	}
+
+	void ForEachKeyValue(const ForEachKeyValueFunctorType& f) override
+	{
+		std::for_each(m_dict.begin(), m_dict.end(), [&f](auto it)
 			{
 				f(it.first, it.second);
 			}
@@ -107,40 +133,46 @@ public:
 	}
 
 	// INodeContainer
-	NodePtr AddChild(std::string name) override
+	NodePtr AddChild(const std::string& name) override
 	{
+		if (TryAddName(name) == false)
+		{
+			//TODO: exception?
+			return nullptr;
+		}
+
 		m_children.push_back(CreateInstance(name, GetPriority()));
 		auto child = m_children.back();
-		
+
 		m_subscriberHolder.OnNodeAdded(child->GetProxy());
 
 		return child->GetProxy();
 	}
 
-	void ForEachChild(ForEachFunctorType f) override
+	void ForEachChild(const ForEachFunctorType& f) override
 	{
 		std::for_each(m_children.begin(), m_children.end(),
-			[f](auto node)
+			[&f](auto node)
 			{
 				f(node->GetProxy());
 			});
 	}
-	
-	NodePtr FindChildIf(FindIfFunctorType f)  override
+
+	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
-		auto findIt = std::find_if(m_children.begin(), m_children.end(), 
-			[f](auto node)
+		auto findIt = std::find_if(m_children.begin(), m_children.end(),
+			[&f](auto node)
 			{
 				return f(node->GetProxy());
 			});
-		
+
 		if (findIt != m_children.end())
 			return (*findIt)->GetProxy();
-		
+
 		return nullptr;
 	}
-	
-	void RemoveChildIf(RemoveIfFunctorType f)  override
+
+	void RemoveChildIf(const RemoveIfFunctorType& f)  override
 	{
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
@@ -149,7 +181,7 @@ public:
 			{
 				//TODO: consider to remove the event
 				//m_subscriberHolder.OnNodeRemoved(node);
-				
+
 				node->MakeOrphan();
 				it = m_children.erase(it);
 			}
@@ -163,7 +195,7 @@ public:
 	{
 		return m_subscriberHolder.Add(subscriber);
 	}
-	
+
 	void UnregisterSubscriber(Cookie cookie) override
 	{
 		m_subscriberHolder.Remove(cookie);
@@ -173,7 +205,7 @@ public:
 	NodePtr GetProxy() override
 	{
 		std::call_once(m_createProxyFlag,
-			[this]()
+			[this]
 			{
 				m_proxy = VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this());
 			});
@@ -182,7 +214,7 @@ public:
 	}
 
 	// INodeInternal
-	virtual void MakeOrphan() override
+	void MakeOrphan() override
 	{
 		if (m_proxy)
 		{
@@ -200,20 +232,44 @@ public:
 	}
 
 private:
-	VolumeNodeImpl(const std::string& name, Priority priority) : m_name{ name }, m_priority{ priority }
+	using DictType = std::unordered_map<KeyT, ValueHolderT>;
+	using ContainerType = std::list<VolumeNodeImplPtr>;
+
+
+private:
+	VolumeNodeImpl(const std::string& name, Priority priority) :
+		m_name{ name }, m_priority{ priority }
 	{
 	}
 
-private:
-	using DictType = std::unordered_map<KeyT, ValueHolderT>;
+	template<typename T>
+	void InsertImpl(const KeyT& key, T&& value)
+	{
+		m_dict.insert_or_assign(key, std::forward<T>(value));
+	}
 
-	mutable DictType m_dict;
-	Priority m_priority;
-	std::string m_name;
+	template<typename T>
+	bool TryInsertImpl(const KeyT& key, T&& value)
+	{
+		auto resIt = m_dict.try_emplace(key, std::forward<T>(value));
+		return resIt.second;
+	}
 
-private:
-	using ContainerType = std::list<VolumeNodeImplPtr>;
-	ContainerType m_children;
+	template<typename T>
+	bool ReplaceImpl(const KeyT& key, T&& value)
+	{
+		auto resIt = m_dict.find(key);
+		if (resIt == m_dict.end())
+			return false;
+
+		resIt->second = std::forward<T>(value);
+		return true;
+	}
+
+	typename DictType::const_iterator FindImpl(const KeyT& key) const
+	{
+		return m_dict.find(key);
+	}
 
 private:
 	class SubscriberHolder :
@@ -230,28 +286,36 @@ private:
 		{
 			m_subscribers.erase(cookie);
 		}
-	
+
 		void OnNodeAdded(NodePtr node) override
 		{
 			for (auto subscriber : m_subscribers)
 				subscriber.second->OnNodeAdded(node);
 		}
-		
+
 		void OnNodeRemoved(NodePtr node) override
 		{
 			for (auto subscriber : m_subscribers)
 				subscriber.second->OnNodeRemoved(node);
 		}
-
 	private:
 		using SubscribersContainerType = std::unordered_map<Cookie, NodeEventsPtr>;
 		SubscribersContainerType m_subscribers;
 		Cookie m_currentCookie = 1;
 	};
 
-	SubscriberHolder m_subscriberHolder;
+private:
+	DictType m_dict;
+	Priority m_priority;
+	std::string m_name;
 
-	private:
-		std::shared_ptr<VolumeNodeProxyImpl<KeyT, ValueHolderT>> m_proxy;
-		std::once_flag m_createProxyFlag;
+	ContainerType m_children;
+
+	std::shared_ptr<VolumeNodeProxyImpl<KeyT, ValueHolderT>> m_proxy;
+	std::once_flag m_createProxyFlag;
+	SubscriberHolder m_subscriberHolder;
 };
+
+} //namespace internal
+
+} //namespace vs

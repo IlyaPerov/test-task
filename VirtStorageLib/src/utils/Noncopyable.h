@@ -1,5 +1,10 @@
 #pragma once
 
+namespace vs
+{
+
+namespace utils
+{
 
 class NonCopyable
 {
@@ -10,3 +15,7 @@ private:
 	NonCopyable(const NonCopyable&) = delete;
 	NonCopyable(NonCopyable&&) = delete;
 };
+
+} //namespace utils
+
+} //namespace vs

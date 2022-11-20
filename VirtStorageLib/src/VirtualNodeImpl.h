@@ -3,15 +3,25 @@
 #include <unordered_map>
 #include <map>
 #include <cassert>
+#include <algorithm>
 
 #include "VolumeNode.h"
 #include "Types.h"
 #include "VirtualNode.h"
-#include "utils/Noncopyable.h"
-#include "utils/UniqueIdGenerator.h"
-#include "intfs/NodeEvents.h"
-#include "intfs/NodeId.h"
 
+#include "NodeIdImpl.h"
+#include "ActionOnRemovedNodeException.h"
+
+#include "utils/Noncopyable.h"
+#include "utils/NameRegistrar.h"
+
+#include "intfs/NodeEvents.h"
+
+namespace vs
+{
+
+namespace internal
+{
 
 // Forward declarations:
 
@@ -29,15 +39,15 @@ class Mounter;
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
 	public IVirtualNode<KeyT, ValueHolderT>,
-	public INodeId,
+	public NodeIdImpl<INodeId>,
 	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>,
-	private NonCopyable
+	private utils::NonCopyable,
+	private utils::NameRegistrar
 {
 
 public:
 	using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
 	using VirtualNodeImplPtr = std::shared_ptr<VirtualNodeImplType>;
-	using VirtualNodeImplWeakPtr = std::weak_ptr<VirtualNodeImplType>;
 
 	using NodeType = IVirtualNode<KeyT, ValueHolderT>;
 	using typename INodeContainer<NodeType>::NodePtr;
@@ -48,8 +58,6 @@ public:
 
 	using typename NodeType::ForEachKeyValueFunctorType;
 
-	//using typename IVirtualNode<KeyT, ValueHolderT>::VolumeNodeType;
-	//using typename IVirtualNode<KeyT, ValueHolderT>::VolumeNodePtr;
 	using VolumeNodeType = IVolumeNode<KeyT, ValueHolderT>;
 	using VolumeNodePtr = typename VolumeNodeType::NodePtr;
 
@@ -57,11 +65,12 @@ public:
 	using typename IVirtualNode<KeyT, ValueHolderT>::FindMountedIfFunctorType;
 	using typename IVirtualNode<KeyT, ValueHolderT>::UnmountIfFunctorType;
 
+
 public:
 
 	static VirtualNodeImplPtr CreateInstance(const std::string& name)
 	{
-		return CreateInstance(name, {});
+		return CreateInstance(name, NodeKind::UserCreated);
 	}
 
 	// INode
@@ -77,7 +86,7 @@ public:
 
 	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		m_mounter.Insert(key, value);
+		m_mounter.Insert(key, std::move(value));
 	}
 
 	virtual void Erase(const KeyT& key) override
@@ -90,76 +99,93 @@ public:
 		return m_mounter.Find(key, value);
 	}
 
-	bool Replace(const KeyT& key, const ValueHolderT& value)
+	bool Contains(const KeyT& key) const override
+	{
+		return m_mounter.Contains(key);
+	}
+
+	bool TryInsert(const KeyT& key, const ValueHolderT& value) override
+	{
+		return m_mounter.TryInsert(key, value);
+	}
+
+	bool TryInsert(const KeyT& key, ValueHolderT&& value) override
+	{
+		return m_mounter.TryInsert(key, std::move(value));
+	}
+
+	bool Replace(const KeyT& key, const ValueHolderT& value) override
 	{
 		return m_mounter.Replace(key, value);
 	}
 
-	bool Replace(const KeyT& key, ValueHolderT&& value)
+	bool Replace(const KeyT& key, ValueHolderT&& value) override
 	{
-		return m_mounter.Replace(key, value);
+		return m_mounter.Replace(key, std::move(value));
 	}
 
-	void ForEachKeyValue(ForEachKeyValueFunctorType f) override
+	void ForEachKeyValue(const ForEachKeyValueFunctorType& f) override
 	{
 		m_mounter.ForEachKeyValue(f);
 	}
 
 	// INodeContainer
-	NodePtr AddChild(std::string name) override
+	NodePtr AddChild(const std::string& name) override
 	{
-		m_mounter.Mount();
-		
-		m_children.push_back(CreateInstance(name, this->shared_from_this()));
-		return m_children.back();
+		return AddNode(name, NodeKind::UserCreated);
 	}
 
-	
-	//TODO: Refactor and spread!
-	void ForEachChild(ForEachFunctorType f) override
+	void ForEachChild(const ForEachFunctorType& f) override
 	{
 		m_mounter.Mount();
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			auto childNode = *it;
-
-			if (childNode->IsEntirelyUnmounted())
-			{
-				it = m_children.erase(it);
+			if (StripIfUnmounted(it))
 				continue;
-			}
-			else
-				it++;
 
-			f(childNode);
+			f(*it);
+			it++;
 		}
 	}
 
-	NodePtr FindChildIf(FindIfFunctorType f)  override
+	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
 		m_mounter.Mount();
-		
-		auto findIt = std::find_if(m_children.begin(), m_children.end(), f);
-		if (findIt != m_children.end())
-			return *m_children.end();
+
+		for (auto it = m_children.begin(); it != m_children.end();)
+		{
+			if (StripIfUnmounted(it))
+				continue;
+
+			if (f(*it))
+				return *it;
+
+			it++;
+		}
 
 		return nullptr;
 	}
 
-	void RemoveChildIf(RemoveIfFunctorType f)  override
+	void RemoveChildIf(const RemoveIfFunctorType& f)  override
 	{
 		m_mounter.Mount();
-		
-		auto removedEndIt = std::remove_if(m_children.begin(), m_children.end(), f);
 
-		m_children.erase(removedEndIt, m_children.end());
+		for (auto it = m_children.begin(); it != m_children.end();)
+		{
+			if (StripIfUnmounted(it))
+				continue;
+
+			if (f(*it))
+				it = m_children.erase(it);
+			else
+				it++;
+		}
 	}
 
 	// IVirtualNode
 	void Mount(VolumeNodePtr node) override
 	{
-		//m_mounter.AddNode(node);
 		m_mounter.Mount(node);
 	}
 
@@ -168,56 +194,87 @@ public:
 		m_mounter.Unmount(node);
 	}
 
-	void ForEachMounted(ForEachMountedFunctorType f)  override
+	void ForEachMounted(const ForEachMountedFunctorType& f)  override
 	{
 		m_mounter.ForEachMounted(f);
 	}
-	
-	VolumeNodePtr FindMountedIf(FindMountedIfFunctorType f) override
+
+	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) override
 	{
 		return m_mounter.FindMountedIf(f);
 	}
-	
-	void UnmountIf(UnmountIfFunctorType f) override
+
+	void UnmountIf(const UnmountIfFunctorType& f) override
 	{
 		m_mounter.UnmountIf(f);
 	}
 
-	// INodeId
-	NodeId GetId() override
+	NodePtr AddChildForMounting(const std::string& name)
 	{
-		return m_id;
-	}
-
-private:
-	VirtualNodeImpl(const std::string& name, VirtualNodeImplWeakPtr parent = {}) :
-		m_name{ name }, m_parent{parent}, m_mounter{ this },
-		m_id(UniqueIdGenerator::GetNextUniquId())
-	{
-	}
-
-	static VirtualNodeImplPtr CreateInstance(const std::string& name, VirtualNodeImplWeakPtr parent)
-	{
-		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name, parent));
-	}
-
-	bool IsEntirelyUnmounted()
-	{
-		return m_mounter.IsEntirelyUnmounted();
+		return AddNode(name, NodeKind::ForMounting);
 	}
 
 private:
 	using ChildrenContainerType = std::list<VirtualNodeImplPtr>;
-	using VolumeNodesContainerType = std::vector<VolumeNodePtr>;
+	enum class NodeKind
+	{
+		UserCreated,
+		ForMounting
+	};
+
+private:
+
+	VirtualNodeImpl(const std::string& name, NodeKind kind) :
+		m_name{ name }, m_kind{ kind }, m_mounter{ this }
+	{
+	}
+
+	static VirtualNodeImplPtr CreateInstance(const std::string& name, NodeKind kind)
+	{
+		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name, kind));
+	}
+
+	bool IsEntirelyUnmounted()
+	{
+		if (m_kind == NodeKind::UserCreated)
+			return false;
+
+		return m_mounter.IsEntirelyUnmounted();
+	}
+
+	NodePtr AddNode(const std::string& name, NodeKind kind)
+	{
+		m_mounter.Mount();
+
+		if (TryAddName(name) == false)
+		{
+			//TODO: exception?
+			return nullptr;
+		}
+
+		m_children.push_back(CreateInstance(name, kind));
+		return m_children.back();
+	}
+
+	bool StripIfUnmounted(typename ChildrenContainerType::iterator& it)
+	{
+		if ((*it)->IsEntirelyUnmounted())
+		{
+			it = m_children.erase(it);
+			return true;
+		}
+
+		return false;
+
+	}
+
+private:
 
 	std::string m_name;
 	ChildrenContainerType m_children;
-	const NodeId m_id;
+	const NodeKind m_kind;
 
 	mutable Mounter<KeyT, ValueHolderT> m_mounter;
-
-	public:
-		VirtualNodeImplWeakPtr m_parent;
 };
 
 //
@@ -225,10 +282,10 @@ private:
 // 
 
 template<typename KeyT, typename ValueHolderT>
-class NodeMountAssistant:
+class NodeMountAssistant :
 	public std::enable_shared_from_this<NodeMountAssistant<KeyT, ValueHolderT>>,
 	public INodeEvents<IVolumeNode<KeyT, ValueHolderT>>,
-	private NonCopyable
+	private utils::NonCopyable
 {
 public:
 
@@ -243,7 +300,7 @@ public:
 	~NodeMountAssistant() override
 	{
 	}
-	
+
 	static Ptr CreateInstance(VirtualNodeImplType* owner, VolumeNodePtr volumeNode)
 	{
 		return std::shared_ptr<NodeMountAssistant>(new NodeMountAssistant(owner, volumeNode));
@@ -252,7 +309,7 @@ public:
 	VolumeNodePtr GetNode()
 	{
 		return m_volumeNode;
-	};
+	}
 
 	void PlanUnmounting()
 	{
@@ -274,7 +331,7 @@ public:
 		case MountState::NeedToUnmount:
 			Unmount();
 			break;
-			
+
 		case MountState::Unmounted:
 		case MountState::Mounted:
 			//do nothing: everything is fine
@@ -312,12 +369,13 @@ private:
 		assert(m_subscriptionCookie == INVALID_COOKIE);
 
 		std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
-				
+		assert(subscription);
+
 		m_subscriptionCookie = subscription->RegisterSubscriber(this->shared_from_this());
-		
+
 		MountChildren();
 		m_state = MountState::Mounted;
-	};
+	}
 
 	void Unmount()
 	{
@@ -332,7 +390,7 @@ private:
 		catch (ActionOnRemovedNodeException&)
 		{
 		}
-		
+
 		UnmountChildren();
 		m_volumeNode = nullptr;
 
@@ -344,11 +402,11 @@ private:
 	VirtualNodePtr FindVirtualChildWithName(const std::string& name)
 	{
 		return m_owner->FindChildIf(
-			[=](auto virtualChild)
+			[&name](auto virtualChild)
 			{
 				if (virtualChild->GetName() == name)
-					return true;
-				return false;
+				return true;
+		return false;
 			});
 	}
 
@@ -358,7 +416,7 @@ private:
 
 		return virtualChild != nullptr ?
 			virtualChild :
-			m_owner->AddChild(name);
+			m_owner->AddChildForMounting(name);
 	}
 
 	void MountChildren()
@@ -366,10 +424,10 @@ private:
 		m_volumeNode->ForEachChild(
 			[this](auto node)
 			{
-				auto virtualNodeToMount = GetOrCreateVirtualChildWithName(node->GetName());
+				auto virtualNodeAcceptor = GetOrCreateVirtualChildWithName(node->GetName());
 
-				virtualNodeToMount->Mount(node);
-				m_nodes.push_back({ virtualNodeToMount, node });
+		virtualNodeAcceptor->Mount(node);
+		m_nodes.push_back({ virtualNodeAcceptor, node });
 
 			});
 	}
@@ -397,7 +455,7 @@ private:
 
 	VirtualNodeImplType* m_owner = nullptr;
 	VolumeNodePtr m_volumeNode;
-	
+
 	std::vector<VirtualNodeForVolumeNode> m_nodes;
 	std::atomic<MountState> m_state = MountState::NeedToMount;
 	Cookie m_subscriptionCookie = INVALID_COOKIE;
@@ -409,7 +467,7 @@ private:
 // 
 
 template<typename KeyT, typename ValueHolderT>
-class Mounter:
+class Mounter :
 	public INodeMounter<IVolumeNode<KeyT, ValueHolderT>>
 {
 public:
@@ -419,7 +477,7 @@ public:
 	using VolumeNodePtr = typename VirtualNodeImpl<KeyT, ValueHolderT>::VolumeNodePtr;
 
 	using NodeMountAssistantType = NodeMountAssistant<KeyT, ValueHolderT>;
-	using NodeMountAssistantTypePtr = typename NodeMountAssistantType::Ptr;
+	using NodeMountAssistantPtr = typename NodeMountAssistantType::Ptr;
 
 	using ForEachMountedFunctorType = typename VirtualNodeImplType::ForEachMountedFunctorType;
 	using FindMountedIfFunctorType = typename VirtualNodeImplType::FindMountedIfFunctorType;
@@ -428,18 +486,16 @@ public:
 	using ForEachKeyValueFunctorType = typename VirtualNodeImplType::ForEachKeyValueFunctorType;
 
 public:
-	Mounter(VirtualNodeImplType* owner): m_owner{ owner }
+	Mounter(VirtualNodeImplType* owner) : m_owner{ owner }
 	{
 	}
 
 	void AddNode(VolumeNodePtr volumeNode)
 	{
-		//TODO: check name 
-		
 		m_assistants.push_back(NodeMountAssistantType::CreateInstance(m_owner, volumeNode));
 		Invalidate();
 	}
-	
+
 	void RemoveNode(VolumeNodePtr volumeNode)
 	{
 		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
@@ -447,7 +503,6 @@ public:
 			auto& assistant = *it;
 			if (NodesEqual(volumeNode.get(), assistant->GetNode().get()))
 			{
-				//TODO: do other stuff
 				assistant->PlanUnmounting();
 				Invalidate();
 				return;
@@ -455,54 +510,22 @@ public:
 		}
 	}
 
-	void Insert(const KeyT& key, const ValueHolderT& value)
+	template<typename T>
+	void Insert(const KeyT& key, T&& value)
 	{
 		Validate();
-		
-		for (auto& assistant : m_assistants)
-		{
-			try
-			{
-				if (assistant->GetNode()->Replace(key, value))
-					return;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				assistant->PlanUnmounting();
-				Invalidate();
-			}
-		}
+
+		if (Replace(key, std::forward<T>(value)))
+			return;
 
 		if (m_assistants.size() > 0)
-			m_assistants.front()->GetNode()->Insert(key, value);
-	}
-
-	void Insert(const KeyT& key, ValueHolderT&& value)
-	{
-		Validate();
-		
-		for (auto& assistant : m_assistants)
-		{
-			try
-			{
-				if (assistant->GetNode()->Replace(key, value))
-					return;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				assistant->PlanUnmounting();
-				Invalidate();
-			}
-		}
-
-		if (m_assistants.size() > 0)
-			m_assistants.front()->GetNode()->Insert(key, value);
+			m_assistants.front()->GetNode()->Insert(key, std::forward<T>(value));
 	}
 
 	void Erase(const KeyT& key)
 	{
 		Validate();
-		
+
 		for (auto& assistant : m_assistants)
 		{
 			try
@@ -517,10 +540,10 @@ public:
 		}
 	}
 
-	bool Find(const KeyT& key, ValueHolderT& value) 
+	bool Find(const KeyT& key, ValueHolderT& value) const
 	{
 		Validate();
-		
+
 		for (auto& assistant : m_assistants)
 		{
 			try
@@ -538,15 +561,15 @@ public:
 		return false;
 	}
 
-	bool Replace(const KeyT& key, const ValueHolderT& value)
+	bool Contains(const KeyT& key)
 	{
 		Validate();
-		
+
 		for (auto& assistant : m_assistants)
 		{
 			try
 			{
-				if (assistant->GetNode()->Replace(key, value))
+				if (assistant->GetNode()->Contains(key))
 					return true;
 			}
 			catch (ActionOnRemovedNodeException&)
@@ -559,15 +582,41 @@ public:
 		return false;
 	}
 
-	bool Replace(const KeyT& key, ValueHolderT&& value)
+	template<typename T>
+	bool TryInsert(const KeyT& key, T&& value)
 	{
 		Validate();
-		
+
 		for (auto& assistant : m_assistants)
 		{
 			try
 			{
-				if (assistant->GetNode()->Replace(key, value))
+				if (assistant->GetNode()->Contains(key))
+					return false;
+			}
+			catch (ActionOnRemovedNodeException&)
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
+		}
+
+		if (m_assistants.size() > 0)
+			m_assistants.front()->GetNode()->TryInsert(key, std::forward<T>(value));
+
+		return true;
+	}
+
+	template<typename T>
+	bool Replace(const KeyT& key, T&& value)
+	{
+		Validate();
+
+		for (auto& assistant : m_assistants)
+		{
+			try
+			{
+				if (assistant->GetNode()->Replace(key, std::forward<T>(value)))
 					return true;
 			}
 			catch (ActionOnRemovedNodeException&)
@@ -580,7 +629,7 @@ public:
 		return false;
 	}
 
-	void ForEachKeyValue(ForEachKeyValueFunctorType f)
+	void ForEachKeyValue(const ForEachKeyValueFunctorType& f)
 	{
 		Validate();
 
@@ -599,15 +648,22 @@ public:
 
 	}
 
-	void Mount()
+	void Mount() const
 	{
 		Validate();
 	}
 
 	// INodeMounter
-	
+
 	void Mount(VolumeNodePtr node) override
 	{
+		if (FindMountedNode(node.get()))
+		{
+			// The node's already mounted
+			//TODO: exception?
+			return;
+		}
+
 		AddNode(node);
 	}
 
@@ -616,7 +672,7 @@ public:
 		RemoveNode(node);
 	}
 
-	void ForEachMounted(ForEachMountedFunctorType f)  override
+	void ForEachMounted(const ForEachMountedFunctorType& f)  override
 	{
 		std::for_each(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
@@ -626,21 +682,21 @@ public:
 		);
 	}
 
-	VolumeNodePtr FindMountedIf(FindMountedIfFunctorType f) override
+	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) override
 	{
-		auto it =  std::find_if(m_assistants.begin(), m_assistants.end(),
+		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
 			{
 				return f(assistant->GetNode());
 			});
-		
+
 		if (it == m_assistants.end())
 			return nullptr;
 
 		return (*it)->GetNode();
 	}
 
-	void UnmountIf(UnmountIfFunctorType f) override
+	void UnmountIf(const UnmountIfFunctorType& f) override
 	{
 		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
@@ -650,11 +706,9 @@ public:
 
 		if (it == m_assistants.end())
 			return;
-		
+
 		(*it)->PlanUnmounting();
 		Invalidate();
-
-		//TODO
 	}
 
 	bool IsEntirelyUnmounted()
@@ -663,26 +717,53 @@ public:
 
 		for (auto assistant : m_assistants)
 		{
-			if (assistant->GetNode()->Exists() == false)
+			if (assistant->GetNode()->Exists() == true)
 			{
 				res = false;
 				break;
 			}
+			else
+			{
+				assistant->PlanUnmounting();
+				Invalidate();
+			}
 		}
-		
+
 		return res;
 	}
 
 private:
-	bool NodesEqual(VolumeNodeType* node1, VolumeNodeType* node2)
+	static bool NodesEqual(VolumeNodeType* node1, VolumeNodeType* node2)
 	{
-		if (node1->GetName() == node2->GetName())
+		if (dynamic_cast<INodeId*>(node1)->GetId() == dynamic_cast<INodeId*>(node2)->GetId())
 			return true;
-		
+
 		return false;
 	}
 
-	void Invalidate()
+	VolumeNodePtr FindMountedNode(NodeId id)
+	{
+		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
+			[id](auto& assistant)
+			{
+				if (std::dynamic_pointer_cast<INodeId>(assistant->GetNode())->GetId() == id)
+				return true;
+
+		return false;
+			});
+
+		if (it != m_assistants.end())
+			return (*it)->GetNode();
+
+		return nullptr;
+	}
+
+	VolumeNodePtr FindMountedNode(VolumeNodeType* volumeNode)
+	{
+		return FindMountedNode(dynamic_cast<INodeId*>(volumeNode)->GetId());
+	}
+
+	void Invalidate() const
 	{
 		m_state = ValidatingState::Unvalidated;
 	}
@@ -703,8 +784,8 @@ private:
 				assistantIt++;
 		}
 
-		m_assistants.sort( 
-			[](NodeMountAssistantTypePtr& left, NodeMountAssistantTypePtr& right) 
+		m_assistants.sort(
+			[](const NodeMountAssistantPtr& left, const NodeMountAssistantPtr& right)
 			{
 				return left->GetNode()->GetPriority() > right->GetNode()->GetPriority();
 			});
@@ -728,6 +809,10 @@ private:
 
 private:
 	VirtualNodeImplType* m_owner = nullptr;
-	mutable std::list<NodeMountAssistantTypePtr> m_assistants;
+	mutable std::list<NodeMountAssistantPtr> m_assistants;
 	mutable std::atomic<ValidatingState> m_state = ValidatingState::Validated;
 };
+
+} //namespace internal
+
+} //namespace vs

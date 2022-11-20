@@ -5,15 +5,20 @@
 #include "NodeLifespan.h"
 #include "NodeContainer.h"
 
+namespace vs
+{
+
 template<typename KeyT, typename ValueHolderT>
 struct IVolumeNode :
-    INode<KeyT, ValueHolderT>, 
-    INodeContainer<IVolumeNode<KeyT, ValueHolderT>>,
-    INodeLifespan
+	INode<KeyT, ValueHolderT>,
+	INodeContainer<IVolumeNode<KeyT, ValueHolderT>>,
+	INodeLifespan
 {
-    using INodeContainer<IVolumeNode<KeyT, ValueHolderT>>::NodePtr;
+	using INodeContainer<IVolumeNode<KeyT, ValueHolderT>>::NodePtr;
 
-    virtual ~IVolumeNode() = default;
+	virtual ~IVolumeNode() = default;
 
-    virtual Priority GetPriority() const = 0;
+	virtual Priority GetPriority() const = 0;
 };
+
+} //namespace vs

@@ -3,25 +3,35 @@
 
 #include <Types.h>
 
+namespace vs
+{
+
+namespace internal
+{
+
 template<typename NodeT>
 struct INodeEvents
 {
-    using NodePtr = typename NodeT::NodePtr;
+	using NodePtr = typename NodeT::NodePtr;
 
-    virtual ~INodeEvents() = default;
+	virtual ~INodeEvents() = default;
 
-    virtual void OnNodeAdded(NodePtr node) = 0;
-    virtual void OnNodeRemoved(NodePtr node) = 0;
+	virtual void OnNodeAdded(NodePtr node) = 0;
+	virtual void OnNodeRemoved(NodePtr node) = 0;
 };
 
 
 template<typename NodeT>
 struct INodeEventsSubscription
 {
-    using NodeEventsPtr = std::shared_ptr<INodeEvents<NodeT>>;
-    
-    virtual ~INodeEventsSubscription() = default;
+	using NodeEventsPtr = std::shared_ptr<INodeEvents<NodeT>>;
 
-    virtual Cookie RegisterSubscriber(NodeEventsPtr subscriber) = 0;
-    virtual void UnregisterSubscriber(Cookie cookie) = 0;
+	virtual ~INodeEventsSubscription() = default;
+
+	virtual Cookie RegisterSubscriber(NodeEventsPtr subscriber) = 0;
+	virtual void UnregisterSubscriber(Cookie cookie) = 0;
 };
+
+} //namespace internal
+
+} //namespace vs

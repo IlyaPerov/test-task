@@ -1,6 +1,5 @@
 #pragma once
 
-#include <unordered_map>
 #include <algorithm>
 
 #include "Types.h"
@@ -9,6 +8,12 @@
 #include "ActionOnRemovedNodeException.h"
 
 #include "./intfs/ProxyProvider.h"
+
+namespace vs
+{
+
+namespace internal
+{
 
 
 template<typename KeyT, typename ValueHolderT>
@@ -63,7 +68,7 @@ public:
 
 	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
-		GetOwner()->Insert(key, value);
+		GetOwner()->Insert(key, std::move(value));
 	}
 
 	virtual void Erase(const KeyT& key) override
@@ -76,17 +81,32 @@ public:
 		return GetOwner()->Find(key, value);
 	}
 
+	bool Contains(const KeyT& key) const override
+	{
+		return GetOwner()->Contains(key);
+	}
+	
+	bool TryInsert(const KeyT& key, const ValueHolderT& value) override
+	{
+		return GetOwner()->TryInsert(key, value);
+	}
+
+	bool TryInsert(const KeyT& key, ValueHolderT&& value) override
+	{
+		return GetOwner()->TryInsert(key, std::move(value));
+	}
+
 	bool Replace(const KeyT& key, const ValueHolderT& value) override
 	{
 		return GetOwner()->Replace(key, value);
 	}
-	
+
 	bool Replace(const KeyT& key, ValueHolderT&& value) override
 	{
-		return GetOwner()->Replace(key, value);
+		return GetOwner()->Replace(key, std::move(value));
 	}
 
-	void ForEachKeyValue(ForEachKeyValueFunctorType f) override
+	void ForEachKeyValue(const ForEachKeyValueFunctorType& f) override
 	{
 		return GetOwner()->ForEachKeyValue(f);
 	}
@@ -97,22 +117,22 @@ public:
 	}
 
 	// INodeContainer
-	NodePtr AddChild(std::string name) override
+	NodePtr AddChild(const std::string& name) override
 	{
 		return GetOwner()->AddChild(name);
 	}
 
-	void ForEachChild(ForEachFunctorType f) override
+	void ForEachChild(const ForEachFunctorType& f) override
 	{
 		GetOwner()->ForEachChild(f);
 	}
 	
-	NodePtr FindChildIf(FindIfFunctorType f)  override
+	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
 		return GetOwner()->FindChildIf(f);
 	}
 	
-	void RemoveChildIf(RemoveIfFunctorType f)  override
+	void RemoveChildIf(const RemoveIfFunctorType& f) override
 	{
 		GetOwner()->RemoveChildIf(f);
 	}
@@ -140,10 +160,16 @@ public:
 		m_owner.reset();
 	}
 
-	// INodelifespan
+	// INodeLifespan
 	bool Exists() const noexcept
 	{
 		return m_owner.lock() != nullptr;
+	}
+
+	// INodeId
+	NodeId GetId() const override
+	{
+		return GetOwner()->GetId();
 	}
 
 
@@ -152,19 +178,21 @@ private:
 	{
 	}
 
-private:
 	VolumeNodeImplPtr GetOwner() const
 	{
 		auto owner = m_owner.lock();
 
 		if (!owner)
-			throw ActionOnRemovedNodeException("Cannot perform an action because the target node  was removed from chierarchy");
+			throw ActionOnRemovedNodeException("Cannot perform an action because the target node was removed from hierarchy");
 
 		return owner;
 	}
 
 private:
-	//mutable NodeWeakPtr m_owner;
 	mutable VolumeNodeImplWeakPtr m_owner;
 
 };
+
+} //namespace internal
+
+} //namespace vs
