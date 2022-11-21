@@ -20,7 +20,15 @@ struct RawNode
 	std::list<RawNode> children;
 
 	RawNode& operator += (const RawNode& rhs);
-	RawNode operator + (const RawNode& r) const;
+	RawNode operator + (const RawNode& rhs) const;
+	bool operator == (const RawNode& rhs) const
+	{
+		return (name == rhs.name) && (values == rhs.values) && (children == rhs.children);
+	}
+	bool operator != (const RawNode& rhs) const
+	{
+		return !(*this == rhs);
+	}
 };
 
 std::shared_ptr<VolumeType> CreateVolume(const RawNode& raw, std::string name, vs::Priority priority);

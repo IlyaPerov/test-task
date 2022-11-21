@@ -144,7 +144,6 @@ TEST_F(VirtualNodeTest, Mount_Several_Nodes)
     const auto& root2 = cRawRoot2;
     const auto volume2 = CreateVolume(root2, "Volume2", 100);
 
-
     virtRoot->Mount(volume1->GetRoot());
     virtRoot->Mount(volume2->GetRoot());
 
