@@ -1,7 +1,6 @@
 #pragma once
 
-#include <unordered_map>
-#include <map>
+#include <list>
 #include <cassert>
 #include <algorithm>
 
@@ -89,7 +88,7 @@ public:
 		m_mounter.Insert(key, std::move(value));
 	}
 
-	virtual void Erase(const KeyT& key) override
+	void Erase(const KeyT& key) override
 	{
 		m_mounter.Erase(key);
 	}
