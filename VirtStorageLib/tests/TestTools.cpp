@@ -90,55 +90,6 @@ std::shared_ptr<VolumeType> CreateVolume(const RawNode& raw, std::string name, P
 	return res;
 }
 
-
-////TODO: improve
-//template<typename NodeT>
-//testing::AssertionResult IsEqualImpl(const NodeT& node, const RawNode& raw)
-//{
-//	if (node->GetName() != raw.name)
-//		return testing::AssertionFailure() << "names are different: \n"
-//		<< "node name == '" << node->GetName() << "'\n"
-//		<< "raw name == '" << raw.name << "'\n";
-//
-//	for (const auto& rawKeyValue : raw.values)
-//	{
-//		ValueVariant value;
-//		if (!node->Find(rawKeyValue.first, value))
-//		{
-//			return testing::AssertionFailure() << "key ["
-//				<< rawKeyValue.first << "] not found";
-//		}
-//
-//		if (rawKeyValue.second != value)
-//		{
-//			return testing::AssertionFailure() << "values for key ["
-//				<< rawKeyValue.first << "] are not equal:";// << value << " and " << it->second;
-//		}
-//	}
-//
-//	for (const auto& rawChild : raw.children)
-//	{
-//		auto child = node->FindChildIf(
-//			[&](auto childNode)
-//			{
-//				if (childNode->GetName() == rawChild.name)
-//				return true;
-//
-//		return false;
-//			});
-//
-//		if (!child)
-//			return testing::AssertionFailure() << "child with name '" << rawChild.name << "' not found";
-//
-//		auto res = IsEqualImpl(child, rawChild);
-//		if (!res)
-//			return res;
-//	}
-//
-//	return testing::AssertionSuccess();
-//
-//}
-
 template<typename NodeT>
 RawNode ToRawNode(const NodeT& node)
 {
