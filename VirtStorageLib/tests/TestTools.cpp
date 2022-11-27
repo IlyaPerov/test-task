@@ -8,7 +8,7 @@ using namespace vs;
 // RawNode
 //
 
-RawNode& RawNode::operator += (const RawNode& rhs)
+void RawNode::Merge(const RawNode& rhs)
 {
 	values.insert(rhs.values.begin(), rhs.values.end());
 
@@ -18,25 +18,55 @@ RawNode& RawNode::operator += (const RawNode& rhs)
 			[&](const auto& child)
 			{
 				if (child.name == rhsChild.name)
-				return true;
-		return false;
+					return true;
+				return false;
 			});
 
 		if (foundChild != children.end())
-			foundChild->operator+=(rhsChild);
+			foundChild->Merge(rhsChild);
 		else
 			children.push_back(rhsChild);
 	}
-
-	return *this;
 }
 
-RawNode RawNode::operator + (const RawNode& rhs) const
+bool IsEqual(const RawNode& lhs, const RawNode& rhs, bool ignoreRootName = false)
 {
-	auto res = *this;
-	res += rhs;
+	if ((ignoreRootName || (lhs.name == rhs.name))
+		&& (lhs.values == rhs.values)
+		&& (lhs.children.size() == rhs.children.size()))
+	{
+		struct Hasher :
+			std::hash<std::string>
+		{
+			std::size_t operator()(const RawNode& raw) const noexcept
+			{
+				return std::hash<std::string>::operator()(raw.name);
+			}
+		};
 
-	return res;
+		using RNSet = std::unordered_set<RawNode, Hasher>;
+
+		RNSet s1, s2;
+		s1.reserve(lhs.children.size());
+		s2.reserve(lhs.children.size());
+
+		s1.insert(lhs.children.begin(), lhs.children.end());
+		s2.insert(rhs.children.begin(), rhs.children.end());
+
+		//definetely not optimal, but...
+		return s1 == s2;
+	}
+
+	return false;
+}
+
+bool RawNode::operator == (const RawNode& rhs) const
+{
+	return IsEqual(*this, rhs);
+}
+bool RawNode::operator != (const RawNode& rhs) const
+{
+	return !(*this == rhs);
 }
 
 void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
@@ -54,69 +84,96 @@ void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
 // CreateVolume
 std::shared_ptr<VolumeType> CreateVolume(const RawNode& raw, std::string name, Priority priority)
 {
-	auto res = make_shared<VolumeType>(priority, std::move(name), raw.name);
+	auto res = make_shared<VolumeType>(raw.name, priority);
 	FillNode(res->GetRoot(), raw);
 
 	return res;
 }
 
 
-//TODO: improve
+////TODO: improve
+//template<typename NodeT>
+//testing::AssertionResult IsEqualImpl(const NodeT& node, const RawNode& raw)
+//{
+//	if (node->GetName() != raw.name)
+//		return testing::AssertionFailure() << "names are different: \n"
+//		<< "node name == '" << node->GetName() << "'\n"
+//		<< "raw name == '" << raw.name << "'\n";
+//
+//	for (const auto& rawKeyValue : raw.values)
+//	{
+//		ValueVariant value;
+//		if (!node->Find(rawKeyValue.first, value))
+//		{
+//			return testing::AssertionFailure() << "key ["
+//				<< rawKeyValue.first << "] not found";
+//		}
+//
+//		if (rawKeyValue.second != value)
+//		{
+//			return testing::AssertionFailure() << "values for key ["
+//				<< rawKeyValue.first << "] are not equal:";// << value << " and " << it->second;
+//		}
+//	}
+//
+//	for (const auto& rawChild : raw.children)
+//	{
+//		auto child = node->FindChildIf(
+//			[&](auto childNode)
+//			{
+//				if (childNode->GetName() == rawChild.name)
+//				return true;
+//
+//		return false;
+//			});
+//
+//		if (!child)
+//			return testing::AssertionFailure() << "child with name '" << rawChild.name << "' not found";
+//
+//		auto res = IsEqualImpl(child, rawChild);
+//		if (!res)
+//			return res;
+//	}
+//
+//	return testing::AssertionSuccess();
+//
+//}
+
 template<typename NodeT>
-testing::AssertionResult IsEqualImpl(const NodeT& node, const RawNode& raw)
+RawNode ToRawNode(const NodeT& node)
 {
-	if (node->GetName() != raw.name)
-		return testing::AssertionFailure() << "names are different: \n"
-		<< "node name == '" << node->GetName() << "'\n"
-		<< "raw name == '" << raw.name << "'\n";
-
-	for (const auto& rawKeyValue : raw.values)
-	{
-		ValueVariant value;
-		if (!node->Find(rawKeyValue.first, value))
+	RawNode res {node->GetName()};
+	node->ForEachKeyValue(
+		[&res](const auto& key, auto& value)
 		{
-			return testing::AssertionFailure() << "key ["
-				<< rawKeyValue.first << "] not found";
+			res.values[key] = value;
 		}
+	);
 
-		if (rawKeyValue.second != value)
+	node->ForEachChild(
+		[&res](auto child)
 		{
-			return testing::AssertionFailure() << "values for key ["
-				<< rawKeyValue.first << "] are not equal:";// << value << " and " << it->second;
+			res.children.push_back(ToRawNode(child));
 		}
-	}
-
-	for (const auto& rawChild : raw.children)
-	{
-		auto child = node->FindChildIf(
-			[&](auto childNode)
-			{
-				if (childNode->GetName() == rawChild.name)
-				return true;
-
-		return false;
-			});
-
-		if (!child)
-			return testing::AssertionFailure() << "child with name '" << rawChild.name << "' not found";
-
-		auto res = IsEqualImpl(child, rawChild);
-		if (!res)
-			return res;
-	}
-
-	return testing::AssertionSuccess();
-
+	);
+	return res;
 }
 
 // IsEqual
-testing::AssertionResult IsEqual(const VolumeType::NodePtr& node, const RawNode& raw)
+template <typename NodeT>
+bool IsEqualImpl(const NodeT& node, const RawNode& raw)
+{
+	return IsEqual(ToRawNode(node), raw, true);
+}
+
+// IsEqual
+bool IsEqual(const VolumeType::NodePtr& node, const RawNode& raw)
 {
 	return IsEqualImpl(node, raw);
 }
 
 // IsEqual
-testing::AssertionResult IsEqual(const StorageType::NodePtr& node, const RawNode& raw)
+bool IsEqual(const StorageType::NodePtr& node, const RawNode& raw)
 {
 	return IsEqualImpl(node, raw);
 }

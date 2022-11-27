@@ -20,7 +20,7 @@ protected:
     const std::string cName = "Volume";
     const std::string cRootName = "Root";
 
-	VolumeType m_volume{ 0, "Volume", "Root" };
+	VolumeType m_volume{ cRootName, cPriority };
 };
 
 TEST_F(VolumeNodeTest, Root)

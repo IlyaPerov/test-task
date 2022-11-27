@@ -3,8 +3,8 @@
 #include "VolumeNode.h"
 
 #include "intfs/NodeEvents.h"
-#include "utils/Noncopyable.h"
 #include "intfs/NodeId.h"
+#include "utils/Noncopyable.h"
 
 namespace vs
 {
@@ -21,14 +21,8 @@ class VolumeNodeBaseImpl :
 	public IVolumeNode<KeyT, ValueHolderT>,
 	public INodeEventsSubscription<IVolumeNode<KeyT, ValueHolderT>>,
 	public INodeId,
-	private utils::NonCopyable
+	utils::NonCopyable
 {
-protected:
-	VolumeNodeBaseImpl() = default;
-private:
-	VolumeNodeBaseImpl(const VolumeNodeBaseImpl&) = delete;
-	VolumeNodeBaseImpl(VolumeNodeBaseImpl&&) = delete;
-
 };
 
 } //namespace internal

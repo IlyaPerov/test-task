@@ -52,9 +52,9 @@ public:
 
 public:
 
-	static VolumeNodeImplPtr CreateInstance(const std::string& name, Priority priority)
+	static VolumeNodeImplPtr CreateInstance(std::string name, Priority priority)
 	{
-		return std::shared_ptr<VolumeNodeImpl>(new VolumeNodeImpl(name, priority));
+		return std::shared_ptr<VolumeNodeImpl>(new VolumeNodeImpl(std::move(name), priority));
 	}
 
 	// INode
@@ -142,7 +142,7 @@ public:
 		}
 
 		m_children.push_back(CreateInstance(name, GetPriority()));
-		auto child = m_children.back();
+		const auto& child = m_children.back();
 
 		m_subscriberHolder.OnNodeAdded(child->GetProxy());
 
@@ -152,7 +152,7 @@ public:
 	void ForEachChild(const ForEachFunctorType& f) override
 	{
 		std::for_each(m_children.begin(), m_children.end(),
-			[&f](auto node)
+			[&f](const auto& node)
 			{
 				f(node->GetProxy());
 			});
@@ -161,7 +161,7 @@ public:
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
 		auto findIt = std::find_if(m_children.begin(), m_children.end(),
-			[&f](auto node)
+			[&f](const auto& node)
 			{
 				return f(node->GetProxy());
 			});
@@ -176,13 +176,14 @@ public:
 	{
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			auto node = *it;
+			const auto& node = *it;
 			if (f(node->GetProxy()))
 			{
 				//TODO: consider to remove the event
 				//m_subscriberHolder.OnNodeRemoved(node);
 
 				node->MakeOrphan();
+				RemoveName((*it)->m_name);
 				it = m_children.erase(it);
 			}
 			else
@@ -221,6 +222,7 @@ public:
 			m_proxy->Disconnect();
 			m_proxy = nullptr;
 		}
+
 		for (auto child : m_children)
 			child->MakeOrphan();
 	}
@@ -237,8 +239,8 @@ private:
 
 
 private:
-	VolumeNodeImpl(const std::string& name, Priority priority) :
-		m_name{ name }, m_priority{ priority }
+	VolumeNodeImpl(std::string name, Priority priority) :
+		m_name{ std::move(name) }, m_priority{ priority }
 	{
 	}
 
@@ -285,6 +287,11 @@ private:
 		void Remove(Cookie cookie)
 		{
 			m_subscribers.erase(cookie);
+		}
+
+		void Clear()
+		{
+			m_subscribers.clear();
 		}
 
 		void OnNodeAdded(NodePtr node) override

@@ -13,6 +13,7 @@ class NameRegistrar
 {
 public:
 	bool TryAddName(const std::string& name);
+	void RemoveName(const std::string& name);
 
 private:
 	std::unordered_set<std::string> m_names;
