@@ -147,8 +147,8 @@ public:
 protected:
 	NodeProxyBaseImpl(NodeImplWeakPtr owner) : m_owner{ owner }
 	{
-		static_assert(std::is_base_of_v<INode, BaseType>, "BaseT parameter must derive from INode");
-		static_assert(std::is_base_of_v<INodeContainer, BaseType>, "BaseT parameter must derive from INodeLifespan");
+		static_assert(std::is_base_of_v<NodeType, BaseType>, "BaseT parameter must derive from INode");
+		static_assert(std::is_base_of_v<INodeContainer<NodeType>, BaseType>, "BaseT parameter must derive from INodeLifespan");
 		static_assert(std::is_base_of_v<INodeLifespan, BaseType>, "BaseT parameter must derive from INodeLifespan");
 		static_assert(std::is_base_of_v<INodeId, BaseType>, "BaseT parameter must derive from INodeId");
 	}

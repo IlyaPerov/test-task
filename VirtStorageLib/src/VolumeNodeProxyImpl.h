@@ -46,20 +46,20 @@ private:
 	// IVolumeNode
 	Priority GetPriority() const override
 	{
-		return GetOwner()->GetPriority();
+		return NodeProxyBaseImplType::GetOwner()->GetPriority();
 	}
 
 	// INodeEventsSubscription
 	Cookie RegisterSubscriber(NodeEventsPtr subscriber) override
 	{
-		std::shared_ptr<INodeEventsSubscription<NodeType>> subscription = std::static_pointer_cast<INodeEventsSubscription<NodeType>>(GetOwner());
+		std::shared_ptr<INodeEventsSubscription<NodeType>> subscription = std::static_pointer_cast<INodeEventsSubscription<NodeType>>(NodeProxyBaseImplType::GetOwner());
 
 		return subscription->RegisterSubscriber(subscriber);
 	}
 
 	void UnregisterSubscriber(Cookie cookie) override
 	{
-		std::shared_ptr<INodeEventsSubscription<NodeType>> subscription = std::static_pointer_cast<INodeEventsSubscription<NodeType>>(GetOwner());
+		std::shared_ptr<INodeEventsSubscription<NodeType>> subscription = std::static_pointer_cast<INodeEventsSubscription<NodeType>>(NodeProxyBaseImplType::GetOwner());
 
 		return subscription->UnregisterSubscriber(cookie);
 	}

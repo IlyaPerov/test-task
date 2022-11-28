@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../src/utils/Noncopyable.h"
 #include <mutex>
 
 namespace vs

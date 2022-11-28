@@ -14,7 +14,7 @@
 #include "VirtualNodeMounter.h"
 #include "VirtualNodeProxyImpl.h"
 
-#include "utils/Noncopyable.h"
+#include "utils/NonCopyable.h"
 #include "utils/NameRegistrar.h"
 
 namespace vs

@@ -4,7 +4,7 @@
 
 #include "intfs/NodeEvents.h"
 #include "intfs/NodeId.h"
-#include "utils/Noncopyable.h"
+#include "utils/NonCopyable.h"
 
 namespace vs
 {

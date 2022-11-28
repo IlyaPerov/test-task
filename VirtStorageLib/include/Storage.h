@@ -2,7 +2,7 @@
 
 #include "Types.h"
 #include "../src/VirtualNodeImpl.h"
-#include "../src/utils/Noncopyable.h"
+#include "../src/utils/NonCopyable.h"
 
 #include "Types.h"
 #include "../src/VolumeNodeImpl.h"

@@ -2,7 +2,7 @@
 
 #include "VirtualNode.h"
 #include "NodeIdImpl.h"
-#include "utils/Noncopyable.h"
+#include "utils/NonCopyable.h"
 
 namespace vs
 {

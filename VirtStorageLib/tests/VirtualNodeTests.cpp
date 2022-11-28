@@ -148,7 +148,7 @@ TEST_F(VirtualNodeTest, Mount_Several_Nodes)
     EXPECT_TRUE(IsEqual(virtRoot, root));
 
     virtRoot->UnmountIf(
-        [](auto&)
+        [](auto)
         {
             return true;
         }

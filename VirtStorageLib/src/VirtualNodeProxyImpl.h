@@ -51,27 +51,27 @@ private:
 	// IVirtualNodeMounter
 	void Mount(VolumeNodePtr node) override
 	{
-		GetOwner()->Mount(node);
+		NodeProxyBaseImplType::GetOwner()->Mount(node);
 	}
 
 	void Unmount(VolumeNodePtr node) override
 	{
-		GetOwner()->Unmount(node);
+		NodeProxyBaseImplType::GetOwner()->Unmount(node);
 	}
 
 	void ForEachMounted(const ForEachMountedFunctorType& f) override
 	{
-		GetOwner()->ForEachMounted(f);
+		NodeProxyBaseImplType::GetOwner()->ForEachMounted(f);
 	}
 
 	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) override
 	{
-		return GetOwner()->FindMountedIf(f);
+		return NodeProxyBaseImplType::GetOwner()->FindMountedIf(f);
 	}
 
 	void UnmountIf(const UnmountIfFunctorType& f) override
 	{
-		GetOwner()->UnmountIf(f);
+		NodeProxyBaseImplType::GetOwner()->UnmountIf(f);
 	}
 };
 

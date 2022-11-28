@@ -11,7 +11,7 @@
 #include "NodeIdImpl.h"
 #include "ActionOnRemovedNodeException.h"
 
-#include "utils/Noncopyable.h"
+#include "utils/NonCopyable.h"
 
 #include "intfs/NodeEvents.h"
 
