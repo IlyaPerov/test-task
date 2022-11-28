@@ -6,10 +6,11 @@
 namespace vs
 {
 
+namespace internal
+{
 
 template<typename NodeImplT>
-class RootHolder final :
-	private utils::NonCopyable
+class RootHolder final
 {
 public:
 	using NodeImplType = NodeImplT;
@@ -20,7 +21,21 @@ public:
 
 public:
 	RootHolder() = default;
-	RootHolder(RootHolder&&) = default;
+	~RootHolder() = default;
+
+	RootHolder(const RootHolder&) = delete;
+	RootHolder& operator=(const RootHolder&) = delete;
+
+	RootHolder(RootHolder&& other) noexcept : m_root{ std::move(other.m_root) }
+	{
+	}
+
+	RootHolder& operator = (RootHolder&& other) noexcept
+	{
+		if (this != &other)
+			m_root = std::move(other.m_root);
+		return *this;
+	}
 
 	template<typename... ArgsT>
 	RootHolder(ArgsT&&... args) :
@@ -28,7 +43,6 @@ public:
 	{
 	}
 
-	RootHolder& operator = (RootHolder&&) = default;
 
 	// Creates a new root; frees the previous one if it exists
 	template<typename... ArgsT>
@@ -64,5 +78,7 @@ private:
 	NodeImplPtr m_root;
 	mutable std::mutex m_mutex;
 };
+
+} //namespace internal
 
 } //namespace vs

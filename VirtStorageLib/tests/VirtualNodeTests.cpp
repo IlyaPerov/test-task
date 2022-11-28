@@ -90,14 +90,6 @@ TEST_F(VirtualNodeTest, RemovedChild_Produces_Exception)
             return child->GetName() == childName;
         });
 
-    foundChild = root->FindChildIf(
-        [&childName](auto child)
-        {
-            return child->GetName() == childName;
-        });
-
-    EXPECT_EQ(foundChild, nullptr);
-
     EXPECT_THROW(foundChild->GetName(), ActionOnRemovedNodeException);
 }
 
@@ -105,10 +97,10 @@ TEST_F(VirtualNodeTest, MountNode)
 {
     const auto virtRoot = m_storage.GetRoot();
 
-	const auto volume1 = CreateVolume(cRawRoot1, "Volume1", 100);
-    EXPECT_TRUE(IsEqual(volume1->GetRoot(), cRawRoot1));
+	const auto volume1 = CreateVolume(cRawRoot1, 100);
+    EXPECT_TRUE(IsEqual(volume1.GetRoot(), cRawRoot1));
 
-	virtRoot->Mount(volume1->GetRoot());
+	virtRoot->Mount(volume1.GetRoot());
     EXPECT_TRUE(IsEqual(virtRoot, cRawRoot1));
 }
 
@@ -116,15 +108,15 @@ TEST_F(VirtualNodeTest, Remove_Child_Adter_Mount)
 {
     auto virtRoot = m_storage.GetRoot();
 
-    const auto volume1 = CreateVolume(cRawRoot1, "Volume1", 100);
-    EXPECT_TRUE(IsEqual(volume1->GetRoot(), cRawRoot1));
+    const auto volume1 = CreateVolume(cRawRoot1, 100);
+    EXPECT_TRUE(IsEqual(volume1.GetRoot(), cRawRoot1));
 
-    virtRoot->Mount(volume1->GetRoot());
+    virtRoot->Mount(volume1.GetRoot());
     EXPECT_TRUE(IsEqual(virtRoot, cRawRoot1));
 
     static const string cChildForRemove = "child";
 
-	volume1->GetRoot()->RemoveChildIf(
+	volume1.GetRoot()->RemoveChildIf(
         [&](auto node)
         {
             return node->GetName() == cChildForRemove;
@@ -144,11 +136,11 @@ TEST_F(VirtualNodeTest, Mount_Several_Nodes)
 {
     const auto virtRoot = m_storage.GetRoot();
 
-    auto volume1 = CreateVolume(cRawRoot1, "Volume1", 200);
-    auto volume2 = CreateVolume(cRawRoot2, "Volume2", 100);
+    auto volume1 = CreateVolume(cRawRoot1, 200);
+    auto volume2 = CreateVolume(cRawRoot2, 100);
 
-    virtRoot->Mount(volume1->GetRoot());
-    virtRoot->Mount(volume2->GetRoot());
+    virtRoot->Mount(volume1.GetRoot());
+    virtRoot->Mount(volume2.GetRoot());
 
     auto root = cRawRoot1;
     root.Merge(cRawRoot2);
@@ -162,11 +154,11 @@ TEST_F(VirtualNodeTest, Mount_Several_Nodes)
         }
     );
 
-    volume1 = CreateVolume(cRawRoot1, "Volume1", 100);
-    volume2 = CreateVolume(cRawRoot2, "Volume2", 200);
+    volume1 = CreateVolume(cRawRoot1, 100);
+    volume2 = CreateVolume(cRawRoot2, 200);
 
-    virtRoot->Mount(volume1->GetRoot());
-    virtRoot->Mount(volume2->GetRoot());
+    virtRoot->Mount(volume1.GetRoot());
+    virtRoot->Mount(volume2.GetRoot());
 
     root = cRawRoot2;
     root.Merge(cRawRoot1);
@@ -178,17 +170,17 @@ TEST_F(VirtualNodeTest, UnmountNode)
 {
     const auto virtRoot = m_storage.GetRoot();
 
-    const auto volume1 = CreateVolume(cRawRoot1, "Volume1", 100);
-    const auto volume2 = CreateVolume(cRawRoot2, "Volume2", 200);
+    const auto volume1 = CreateVolume(cRawRoot1, 100);
+    const auto volume2 = CreateVolume(cRawRoot2, 200);
 
-    virtRoot->Mount(volume1->GetRoot());
-    virtRoot->Mount(volume2->GetRoot());
+    virtRoot->Mount(volume1.GetRoot());
+    virtRoot->Mount(volume2.GetRoot());
 
     auto root = cRawRoot2;
     root.Merge(cRawRoot1);
     EXPECT_TRUE(IsEqual(virtRoot, root));
 
-    virtRoot->Unmount(volume1->GetRoot());
+    virtRoot->Unmount(volume1.GetRoot());
 
 	EXPECT_TRUE(IsEqual(virtRoot, cRawRoot2));
 }

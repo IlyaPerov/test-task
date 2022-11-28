@@ -26,9 +26,7 @@ struct RawNode
 	bool operator != (const RawNode& rhs) const;
 };
 
-
-
-std::shared_ptr<VolumeType> CreateVolume(const RawNode& raw, std::string name, vs::Priority priority);
+VolumeType CreateVolume(const RawNode& raw, vs::Priority priority);
 
 bool IsEqual(const VolumeType::NodePtr& node, const RawNode& raw);
 bool IsEqual(const StorageType::NodePtr& node, const RawNode& raw);

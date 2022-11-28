@@ -57,9 +57,9 @@ public:
 
 public:
 
-	static VirtualNodeImplPtr CreateInstance(const std::string& name)
+	static VirtualNodeImplPtr CreateInstance(std::string name)
 	{
-		return CreateInstance(name, NodeKind::UserCreated);
+		return CreateInstance(std::move(name), NodeKind::UserCreated);
 	}
 
 	// INode
@@ -238,14 +238,14 @@ private:
 
 private:
 
-	VirtualNodeImpl(const std::string& name, NodeKind kind) :
-		m_name{ name }, m_kind{ kind }, m_mounter{ this }
+	VirtualNodeImpl(std::string name, NodeKind kind) :
+		m_name{ std::move(name) }, m_kind{ kind }, m_mounter{ this }
 	{
 	}
 
-	static VirtualNodeImplPtr CreateInstance(const std::string& name, NodeKind kind)
+	static VirtualNodeImplPtr CreateInstance(std::string name, NodeKind kind)
 	{
-		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(name, kind));
+		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(std::move(name), kind));
 	}
 
 	bool IsEntirelyUnmounted()

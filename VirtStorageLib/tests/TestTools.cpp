@@ -82,10 +82,11 @@ void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
 }
 
 // CreateVolume
-std::shared_ptr<VolumeType> CreateVolume(const RawNode& raw, std::string name, Priority priority)
+
+VolumeType CreateVolume(const RawNode& raw, vs::Priority priority)
 {
-	auto res = make_shared<VolumeType>(raw.name, priority);
-	FillNode(res->GetRoot(), raw);
+	VolumeType res{ raw.name, priority };
+	FillNode(res.GetRoot(), raw);
 
 	return res;
 }

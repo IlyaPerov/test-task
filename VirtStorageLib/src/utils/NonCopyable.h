@@ -8,12 +8,13 @@ namespace utils
 
 class NonCopyable
 {
+public:
+	NonCopyable(const NonCopyable&) = delete;
+	NonCopyable& operator = (const NonCopyable&) = delete;
+
 protected:
 	NonCopyable() = default;
 
-private:
-	NonCopyable(const NonCopyable&) = delete;
-	NonCopyable(NonCopyable&&) = delete;
 };
 
 } //namespace utils

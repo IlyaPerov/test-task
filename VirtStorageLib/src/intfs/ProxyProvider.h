@@ -16,7 +16,6 @@ struct IProxy
 template<typename ProxiedNodeT>
 struct IProxyProvider
 {
-
     virtual ~IProxyProvider() = default;
 
     virtual typename ProxiedNodeT::NodePtr GetProxy() = 0;

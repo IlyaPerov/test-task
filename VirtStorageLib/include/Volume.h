@@ -8,6 +8,6 @@ namespace vs
 {
 
 template <typename KeyT, typename ValueHolderT = ValueVariant>
-using Volume = RootHolder<internal::VolumeNodeImpl<KeyT, ValueHolderT>>;
+using Volume = internal::RootHolder<internal::VolumeNodeImpl<KeyT, ValueHolderT>>;
 
 } //namespace vs

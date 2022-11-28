@@ -12,6 +12,6 @@ namespace vs
 {
 
 template <typename KeyT, typename ValueHolderT = ValueVariant>
-using Storage = RootHolder<internal::VirtualNodeImpl<KeyT, ValueHolderT>>;
+using Storage = internal::RootHolder<internal::VirtualNodeImpl<KeyT, ValueHolderT>>;
 
 } //namespace vs
