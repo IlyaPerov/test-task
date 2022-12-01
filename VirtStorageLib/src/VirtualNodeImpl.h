@@ -1,7 +1,6 @@
 #pragma once
 
 #include <list>
-#include <unordered_set>
 #include <cassert>
 #include <algorithm>
 
@@ -14,7 +13,6 @@
 #include "VirtualNodeMounter.h"
 #include "VirtualNodeProxyImpl.h"
 
-#include "utils/NonCopyable.h"
 #include "utils/NameRegistrar.h"
 
 namespace vs
@@ -36,6 +34,7 @@ class VirtualNodeImpl final :
 {
 
 public:
+	using VirtualNodeBaseImplType = NodeIdImpl < VirtualNodeBaseImpl<KeyT, ValueHolderT> >;
 	using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
 	using VirtualNodeImplPtr = std::shared_ptr<VirtualNodeImplType>;
 
@@ -170,7 +169,6 @@ public:
 			const auto& node = *it;
 			if (f(node->GetProxy()))
 			{
-				//TODO: refactor
 				RemoveName(node->m_name);
 				it = m_children.erase(it);
 			}
@@ -213,19 +211,7 @@ public:
 	// IProxyProvider
 	NodePtr GetProxy() override
 	{
-		std::call_once(m_createProxyFlag,
-			[this]
-			{
-				m_proxy = VirtualNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this());
-			});
-
-		return m_proxy;
-	}
-
-	// INodelifespan
-	bool Exists() const noexcept
-	{
-		return m_proxy != nullptr;
+		return VirtualNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VirtualNodeBaseImplType::GetId());
 	}
 
 private:
@@ -289,8 +275,6 @@ private:
 	std::string m_name;
 	ChildrenContainerType m_children;
 	const NodeKind m_kind;
-	std::shared_ptr<VirtualNodeProxyImpl<KeyT, ValueHolderT>> m_proxy;
-	std::once_flag m_createProxyFlag;
 	mutable VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
 };
 

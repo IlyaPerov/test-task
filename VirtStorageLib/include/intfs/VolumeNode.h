@@ -2,7 +2,6 @@
 
 #include "Types.h"
 #include "Node.h"
-#include "NodeLifespan.h"
 #include "NodeContainer.h"
 
 namespace vs
@@ -11,8 +10,7 @@ namespace vs
 template<typename KeyT, typename ValueHolderT>
 struct IVolumeNode :
 	INode<KeyT, ValueHolderT>,
-	INodeContainer<IVolumeNode<KeyT, ValueHolderT>>,
-	INodeLifespan
+	INodeContainer<IVolumeNode<KeyT, ValueHolderT>>
 {
 	using INodeContainer<IVolumeNode<KeyT, ValueHolderT>>::NodePtr;
 

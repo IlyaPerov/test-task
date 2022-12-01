@@ -28,17 +28,17 @@ public:
 		VolumeNodeImpl,
 		KeyT, ValueHolderT>;
 
-	using VolumeNodeImplWeakPtr = typename NodeProxyBaseImplType::NodeImplWeakPtr;
 	using NodeType = typename NodeProxyBaseImplType::NodeType;
+	using VolumeNodeImplWeakPtr = typename NodeProxyBaseImplType::NodeImplWeakPtr;
 	using typename INodeEventsSubscription<NodeType>::NodeEventsPtr;
 
-	VolumeNodeProxyImpl(VolumeNodeImplWeakPtr owner) : NodeProxyBaseImplType(owner)
+	VolumeNodeProxyImpl(VolumeNodeImplWeakPtr owner, NodeId nodeId) : NodeProxyBaseImplType(owner, nodeId)
 	{
 	}
 
-	static std::shared_ptr<VolumeNodeProxyImpl> CreateInstance(VolumeNodeImplWeakPtr owner)
+	static std::shared_ptr<NodeType> CreateInstance(VolumeNodeImplWeakPtr owner, NodeId nodeId)
 	{
-		return std::make_shared<VolumeNodeProxyImpl>(owner);
+		return std::make_shared<VolumeNodeProxyImpl>(owner, nodeId);
 	}
 
 private:

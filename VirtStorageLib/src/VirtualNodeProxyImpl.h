@@ -9,7 +9,6 @@ namespace vs
 namespace internal
 {
 
-
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl;
 
@@ -27,6 +26,8 @@ public:
 		VirtualNodeImpl,
 		KeyT, ValueHolderT>;
 
+	using NodeType = typename NodeProxyBaseImplType::NodeType;
+
 	using VirtualNodeImplWeakPtr = typename NodeProxyBaseImplType::NodeImplWeakPtr;
 
 	using VolumeNodeType = typename VirtualNodeImpl<KeyT, ValueHolderT>::VolumeNodeType;
@@ -37,13 +38,13 @@ public:
 	using UnmountIfFunctorType = typename IVirtualNode<KeyT, ValueHolderT>::UnmountIfFunctorType;
 
 
-	VirtualNodeProxyImpl(VirtualNodeImplWeakPtr owner) : NodeProxyBaseImplType(owner)
+	VirtualNodeProxyImpl(VirtualNodeImplWeakPtr owner, NodeId nodeId) : NodeProxyBaseImplType(owner, nodeId)
 	{
 	}
 
-	static std::shared_ptr<VirtualNodeProxyImpl> CreateInstance(VirtualNodeImplWeakPtr owner)
+	static std::shared_ptr<NodeType> CreateInstance(VirtualNodeImplWeakPtr owner, NodeId nodeId)
 	{
-		return std::make_shared<VirtualNodeProxyImpl>(owner);
+		return std::make_shared<VirtualNodeProxyImpl>(owner, nodeId);
 	}
 
 private:

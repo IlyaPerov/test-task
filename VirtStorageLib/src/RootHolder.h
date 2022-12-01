@@ -12,11 +12,8 @@ template<typename NodeImplT>
 class RootHolder final
 {
 public:
-	using NodeImplType = NodeImplT;
-	using NodeImplPtr = std::shared_ptr<NodeImplType>;
-
-	using NodeType = typename NodeImplType::NodeType;
-	using NodePtr = typename NodeImplType::NodePtr;
+	using NodeType = typename NodeImplT::NodeType;
+	using NodePtr = typename NodeImplT::NodePtr;
 
 public:
 	RootHolder() = default;
@@ -65,6 +62,9 @@ public:
 	}
 
 private:
+	using NodeImplType = NodeImplT;
+	using NodeImplPtr = std::shared_ptr<NodeImplType>;
+
 	void FreeRootImpl()
 	{
 		if (m_root)

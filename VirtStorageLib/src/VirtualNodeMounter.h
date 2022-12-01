@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "VolumeNode.h"
+#include "NodeLifespan.h"
 #include "Types.h"
 
 #include "NodeIdImpl.h"
@@ -68,6 +69,23 @@ public:
 		assert(nodeLifespan);
 
 		return nodeLifespan->Exists();
+	}
+
+	Priority GetPriority() const noexcept
+	{
+		if (!m_volumeNode)
+			return MINIMAL_PRIORITY;
+
+		try
+		{
+			return m_volumeNode->GetPriority();
+		}
+		catch (ActionOnRemovedNodeException&)
+		{
+			;
+		}
+
+		return MINIMAL_PRIORITY;
 	}
 
 	void Mount()
@@ -436,7 +454,8 @@ public:
 		std::for_each(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
 			{
-				f(assistant->GetNode());
+				if (assistant->HasAliveNode())
+					f(assistant->GetNode());
 			}
 		);
 	}
@@ -446,6 +465,8 @@ public:
 		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
 			{
+				if (!assistant->HasAliveNode())
+					return false;
 				return f(assistant->GetNode());
 			});
 
@@ -460,6 +481,8 @@ public:
 		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[&f](auto assistant)
 			{
+				if (!assistant->HasAliveNode())
+					return false;
 				return f(assistant->GetNode());
 			});
 
@@ -471,7 +494,7 @@ public:
 		Invalidate(InvalidReason::NodeUnmouted);
 	}
 
-	bool IsEntirelyUnmounted()
+	bool IsEntirelyUnmounted() const
 	{
 		auto res = true;
 
@@ -547,8 +570,6 @@ private:
 		if (IsValid())
 			return;
 
-		m_invalidReason = InvalidReason::Valid;
-
 		for (auto assistantIt = m_assistants.begin(); assistantIt != m_assistants.end();)
 		{
 			if(!(*assistantIt)->HasAliveNode())
@@ -557,11 +578,14 @@ private:
 				assistantIt++;
 		}
 
-		m_assistants.sort(
-			[](const NodeMountAssistantPtr& left, const NodeMountAssistantPtr& right)
-			{
-				return left->GetNode()->GetPriority() > right->GetNode()->GetPriority();
-			});
+		if (m_invalidReason == InvalidReason::NodeMounted)
+			m_assistants.sort(
+				[](const NodeMountAssistantPtr& left, const NodeMountAssistantPtr& right)
+				{
+					return left->GetPriority() > right->GetPriority();
+				});
+
+		m_invalidReason = InvalidReason::Valid;
 
 	}
 

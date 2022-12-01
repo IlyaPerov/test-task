@@ -9,6 +9,7 @@ namespace vs
 using ValueVariant = std::variant<int32_t, int64_t, double, std::string>;
 
 using Priority = size_t;
+constexpr Priority MINIMAL_PRIORITY {};
 
 using Cookie = uint64_t;
 constexpr Cookie INVALID_COOKIE = 0;

@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <mutex>
+#include <shared_mutex>
 
 #include "Types.h"
 #include "VolumeNode.h"
@@ -29,12 +30,12 @@ template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final :
 	public NodeIdImpl<VolumeNodeBaseImpl<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
-	public INodeInternal,
 	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>,
 	private utils::NameRegistrar
 {
 
 public:
+	using VolumeNodeBaseImplType = NodeIdImpl < VolumeNodeBaseImpl<KeyT, ValueHolderT>>;
 	using VolumeNodeImplType = VolumeNodeImpl<KeyT, ValueHolderT>;
 	using VolumeNodeImplPtr = std::shared_ptr<VolumeNodeImplType>;
 
@@ -65,21 +66,29 @@ public:
 
 	void Insert(const KeyT& key, const ValueHolderT& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		InsertImpl(key, value);
 	}
 
 	void Insert(const KeyT& key, ValueHolderT&& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		InsertImpl(key, std::move(value));
 	}
 
 	void Erase(const KeyT& key) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		m_dict.erase(key);
 	}
 
 	bool Find(const KeyT& key, ValueHolderT& value) const override
 	{
+		std::shared_lock lock(m_dictMutex);
+
 		auto it = FindImpl(key);
 		if (it == m_dict.end())
 			return false;
@@ -91,6 +100,8 @@ public:
 
 	bool Contains(const KeyT& key) const override
 	{
+		std::shared_lock lock(m_dictMutex);
+
 		auto it = FindImpl(key);
 		if (it == m_dict.end())
 			return false;
@@ -100,27 +111,37 @@ public:
 
 	bool TryInsert(const KeyT& key, const ValueHolderT& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		return TryInsertImpl(key, value);
 	}
 
 	bool TryInsert(const KeyT& key, ValueHolderT&& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		return TryInsertImpl(key, std::move(value));
 	}
 
 	bool Replace(const KeyT& key, const ValueHolderT& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		return ReplaceImpl(key, value);
 	}
 
 	bool Replace(const KeyT& key, ValueHolderT&& value) override
 	{
+		std::lock_guard lock(m_dictMutex);
+
 		return ReplaceImpl(key, std::move(value));
 	}
 
 	void ForEachKeyValue(const ForEachKeyValueFunctorType& f) override
 	{
-		std::for_each(m_dict.begin(), m_dict.end(), [&f](auto it)
+		std::lock_guard lock(m_dictMutex);
+
+		std::for_each(m_dict.begin(), m_dict.end(), [&f](auto& it)
 			{
 				f(it.first, it.second);
 			}
@@ -135,22 +156,30 @@ public:
 	// INodeContainer
 	NodePtr AddChild(const std::string& name) override
 	{
-		if (TryAddName(name) == false)
+		NodePtr newChild;
+
 		{
-			//TODO: exception?
-			return nullptr;
+			std::lock_guard lock(m_nodeMutex);
+
+			if (TryAddName(name) == false)
+			{
+				//TODO: exception?
+				return nullptr;
+			}
+
+			m_children.push_back(CreateInstance(name, GetPriority()));
+			newChild = m_children.back()->GetProxy();
 		}
 
-		m_children.push_back(CreateInstance(name, GetPriority()));
-		const auto& child = m_children.back();
+		m_subscriberHolder.OnNodeAdded(newChild);
 
-		m_subscriberHolder.OnNodeAdded(child->GetProxy());
-
-		return child->GetProxy();
+		return newChild;
 	}
 
 	void ForEachChild(const ForEachFunctorType& f) override
 	{
+		std::shared_lock lock(m_nodeMutex);
+
 		std::for_each(m_children.begin(), m_children.end(),
 			[&f](const auto& node)
 			{
@@ -160,6 +189,8 @@ public:
 
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
+		std::shared_lock lock(m_nodeMutex);
+
 		auto findIt = std::find_if(m_children.begin(), m_children.end(),
 			[&f](const auto& node)
 			{
@@ -174,6 +205,8 @@ public:
 
 	void RemoveChildIf(const RemoveIfFunctorType& f)  override
 	{
+		std::lock_guard lock(m_nodeMutex);
+
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
 			const auto& node = *it;
@@ -182,7 +215,6 @@ public:
 				//TODO: consider to remove the event
 				//m_subscriberHolder.OnNodeRemoved(node);
 
-				node->MakeOrphan();
 				RemoveName((*it)->m_name);
 				it = m_children.erase(it);
 			}
@@ -205,32 +237,7 @@ public:
 	// IProxyProvider
 	NodePtr GetProxy() override
 	{
-		std::call_once(m_createProxyFlag,
-			[this]
-			{
-				m_proxy = VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this());
-			});
-
-		return m_proxy;
-	}
-
-	// INodeInternal
-	void MakeOrphan() override
-	{
-		if (m_proxy)
-		{
-			m_proxy->Disconnect();
-			m_proxy = nullptr;
-		}
-
-		for (auto child : m_children)
-			child->MakeOrphan();
-	}
-
-	// INodelifespan
-	bool Exists() const noexcept
-	{
-		return m_proxy != nullptr;
+		return VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VolumeNodeBaseImplType::GetId());
 	}
 
 private:
@@ -240,7 +247,7 @@ private:
 
 private:
 	VolumeNodeImpl(std::string name, Priority priority) :
-		m_name{ std::move(name) }, m_priority{ priority }
+		m_priority{ priority }, m_name {std::move(name)	}
 	{
 	}
 
@@ -280,35 +287,51 @@ private:
 	public:
 		Cookie Add(NodeEventsPtr subscriber)
 		{
+			std::lock_guard lock(m_mutex);
 			m_subscribers[m_currentCookie] = subscriber;
 			return m_currentCookie++;
 		}
 
 		void Remove(Cookie cookie)
 		{
+			std::lock_guard lock(m_mutex);
 			m_subscribers.erase(cookie);
 		}
 
 		void Clear()
 		{
+			std::lock_guard lock(m_mutex);
 			m_subscribers.clear();
 		}
 
 		void OnNodeAdded(NodePtr node) override
 		{
-			for (auto subscriber : m_subscribers)
+			SubscribersContainerType subscribersCopy;
+			{
+				std::lock_guard lock(m_mutex);
+				subscribersCopy = m_subscribers;
+			}
+
+			for (auto subscriber : subscribersCopy)
 				subscriber.second->OnNodeAdded(node);
 		}
 
 		void OnNodeRemoved(NodePtr node) override
 		{
-			for (auto subscriber : m_subscribers)
+			SubscribersContainerType subscribersCopy;
+			{
+				std::lock_guard lock(m_mutex);
+				subscribersCopy = m_subscribers;
+			}
+
+			for (auto subscriber : subscribersCopy)
 				subscriber.second->OnNodeRemoved(node);
 		}
 	private:
 		using SubscribersContainerType = std::unordered_map<Cookie, NodeEventsPtr>;
 		SubscribersContainerType m_subscribers;
 		Cookie m_currentCookie = 1;
+		std::mutex m_mutex;
 	};
 
 private:
@@ -317,10 +340,10 @@ private:
 	std::string m_name;
 
 	ContainerType m_children;
-
-	std::shared_ptr<VolumeNodeProxyImpl<KeyT, ValueHolderT>> m_proxy;
-	std::once_flag m_createProxyFlag;
 	SubscriberHolder m_subscriberHolder;
+
+	mutable std::shared_mutex m_dictMutex;
+	std::shared_mutex m_nodeMutex;
 };
 
 } //namespace internal

@@ -3,8 +3,7 @@
 #include <algorithm>
 
 #include "Types.h"
-#include "VolumeNode.h"
-#include "VolumeNodeBaseImpl.h"
+#include "NodeLifespan.h"
 #include "ActionOnRemovedNodeException.h"
 
 #include "./intfs/ProxyProvider.h"
@@ -25,7 +24,7 @@ template<
 	typename KeyT, typename ValueHolderT>
 class NodeProxyBaseImpl:
 	public BaseT<KeyT, ValueHolderT>,
-	public IProxy
+	public INodeLifespan
 {
 
 public:
@@ -123,18 +122,10 @@ public:
 		GetOwner()->RemoveChildIf(f);
 	}
 
-	// IProxy
-	void Disconnect() noexcept override
-	{
-		auto owner = m_owner.lock();
-		
-		m_owner.reset();
-	}
-
 	// INodeLifespan
 	bool Exists() const noexcept
 	{
-		return m_owner.lock() != nullptr;
+		return !m_owner.expired();
 	}
 
 	// INodeId
@@ -145,11 +136,10 @@ public:
 
 
 protected:
-	NodeProxyBaseImpl(NodeImplWeakPtr owner) : m_owner{ owner }
+	NodeProxyBaseImpl(NodeImplWeakPtr owner, NodeId nodeId) : m_owner{ owner }, m_nodeId{ nodeId }
 	{
 		static_assert(std::is_base_of_v<NodeType, BaseType>, "BaseT parameter must derive from INode");
 		static_assert(std::is_base_of_v<INodeContainer<NodeType>, BaseType>, "BaseT parameter must derive from INodeLifespan");
-		static_assert(std::is_base_of_v<INodeLifespan, BaseType>, "BaseT parameter must derive from INodeLifespan");
 		static_assert(std::is_base_of_v<INodeId, BaseType>, "BaseT parameter must derive from INodeId");
 	}
 
@@ -158,13 +148,14 @@ protected:
 		auto owner = m_owner.lock();
 
 		if (!owner)
-			throw ActionOnRemovedNodeException("Cannot perform an action because the target node was removed from hierarchy");
+			throw ActionOnRemovedNodeException(m_nodeId);
 
 		return owner;
 	}
 
 private:
 	NodeImplWeakPtr m_owner;
+	NodeId m_nodeId;
 
 };
 
