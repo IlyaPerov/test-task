@@ -31,7 +31,7 @@ TEST_F(VolumeNodeTest, Root)
     EXPECT_EQ(root->GetPriority(), cPriority);
 }
 
-TEST_F(VolumeNodeTest, AddChild_Remove_Find)
+TEST_F(VolumeNodeTest, InsertChild_Remove_Find)
 {
     auto root = m_volume.GetRoot();
 

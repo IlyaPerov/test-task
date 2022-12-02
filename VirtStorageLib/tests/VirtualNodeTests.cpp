@@ -28,7 +28,7 @@ TEST_F(VirtualNodeTest, Root)
     EXPECT_EQ(root->GetName(), cRootName);
 }
 
-TEST_F(VirtualNodeTest, AddChild_Remove_Find)
+TEST_F(VirtualNodeTest, InsertChild_Remove_Find)
 {
     const auto root = m_storage.GetRoot();
 
@@ -104,9 +104,9 @@ TEST_F(VirtualNodeTest, MountNode)
     EXPECT_TRUE(IsEqual(virtRoot, cRawRoot1));
 }
 
-TEST_F(VirtualNodeTest, Remove_Child_Adter_Mount)
+TEST_F(VirtualNodeTest, Remove_Child_After_Mount)
 {
-    auto virtRoot = m_storage.GetRoot();
+    const auto virtRoot = m_storage.GetRoot();
 
     const auto volume1 = CreateVolume(cRawRoot1, 100);
     EXPECT_TRUE(IsEqual(volume1.GetRoot(), cRawRoot1));
@@ -128,6 +128,28 @@ TEST_F(VirtualNodeTest, Remove_Child_Adter_Mount)
         {
             return child.name == cChildForRemove;
         }));
+
+    EXPECT_TRUE(IsEqual(virtRoot, root));
+}
+
+TEST_F(VirtualNodeTest, Add_Child_After_Mount)
+{
+    const auto virtRoot = m_storage.GetRoot();
+
+    const auto volume1 = CreateVolume(cRawRoot1, 100);
+    EXPECT_TRUE(IsEqual(volume1.GetRoot(), cRawRoot1));
+
+    virtRoot->Mount(volume1.GetRoot());
+    EXPECT_TRUE(IsEqual(virtRoot, cRawRoot1));
+
+    static const string cChildToAdd = "NewChild";
+
+    const auto newChild = volume1.GetRoot()->InsertChild(cChildToAdd);
+    for (int i = 0; i < 3; i++)
+        newChild->Insert(i, i * 100);
+
+    auto root = cRawRoot1;
+    root.children.push_back(ToRawNode(newChild));
 
     EXPECT_TRUE(IsEqual(virtRoot, root));
 }

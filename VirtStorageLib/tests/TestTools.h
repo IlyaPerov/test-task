@@ -26,6 +26,7 @@ struct RawNode
 	bool operator != (const RawNode& rhs) const;
 };
 
+RawNode ToRawNode(const VolumeType::NodePtr& node);
 VolumeType CreateVolume(const RawNode& raw, vs::Priority priority);
 
 bool IsEqual(const VolumeType::NodePtr& node, const RawNode& raw);

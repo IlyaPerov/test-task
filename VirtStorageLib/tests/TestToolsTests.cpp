@@ -6,9 +6,15 @@
 using namespace std;
 using namespace vs;
 
+TEST(TestToolsTest, ToRawNode)
+{
+	const auto volume1 = CreateVolume(cRawRoot1, 100);
+	EXPECT_EQ(ToRawNode(volume1.GetRoot()), cRawRoot1);
+}
+
 TEST(TestToolsTest, Merge_Raw_Nodes)
 {
-	auto root = cRawRoot1;
+	auto root { cRawRoot1 };
 	root.Merge(cRawRoot2);
 	EXPECT_EQ(root, cRawRoot12);
 

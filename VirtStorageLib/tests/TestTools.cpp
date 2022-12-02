@@ -91,8 +91,9 @@ VolumeType CreateVolume(const RawNode& raw, vs::Priority priority)
 	return res;
 }
 
+// ToRawNode
 template<typename NodeT>
-RawNode ToRawNode(const NodeT& node)
+RawNode ToRawNodeImpl(const NodeT& node)
 {
 	RawNode res {node->GetName()};
 	node->ForEachKeyValue(
@@ -105,17 +106,22 @@ RawNode ToRawNode(const NodeT& node)
 	node->ForEachChild(
 		[&res](auto child)
 		{
-			res.children.push_back(ToRawNode(child));
+			res.children.push_back(ToRawNodeImpl(child));
 		}
 	);
 	return res;
+}
+
+RawNode ToRawNode(const VolumeType::NodePtr& node)
+{
+	return ToRawNodeImpl(node);
 }
 
 // IsEqual
 template <typename NodeT>
 bool IsEqualImpl(const NodeT& node, const RawNode& raw)
 {
-	return IsEqual(ToRawNode(node), raw, true);
+	return IsEqual(ToRawNodeImpl(node), raw, true);
 }
 
 // IsEqual
