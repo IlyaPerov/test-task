@@ -15,7 +15,7 @@ namespace internal
 //
 
 template<typename KeyT, typename ValueHolderT>
-class VirtualNodeBaseImpl :
+class VirtualNodeBase:
 	public IVirtualNode<KeyT, ValueHolderT>,
 	public INodeId,
 	private utils::NonCopyable

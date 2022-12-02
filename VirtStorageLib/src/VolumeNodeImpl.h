@@ -10,7 +10,7 @@
 #include "intfs/ProxyProvider.h"
 #include "intfs/NodeInternal.h"
 
-#include "VolumeNodeBaseImpl.h"
+#include "VolumeNodeBase.h"
 #include "VolumeNodeProxyImpl.h"
 #include "NodeIdImpl.h"
 
@@ -28,14 +28,14 @@ namespace internal
 
 template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final :
-	public NodeIdImpl<VolumeNodeBaseImpl<KeyT, ValueHolderT>>,
+	public NodeIdImpl<VolumeNodeBase<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
 	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>,
 	private utils::NameRegistrar
 {
 
 public:
-	using VolumeNodeBaseImplType = NodeIdImpl < VolumeNodeBaseImpl<KeyT, ValueHolderT>>;
+	using VolumeNodeBaseType = NodeIdImpl < VolumeNodeBase<KeyT, ValueHolderT>>;
 	using VolumeNodeImplType = VolumeNodeImpl<KeyT, ValueHolderT>;
 	using VolumeNodeImplPtr = std::shared_ptr<VolumeNodeImplType>;
 
@@ -237,7 +237,7 @@ public:
 	// IProxyProvider
 	NodePtr GetProxy() override
 	{
-		return VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VolumeNodeBaseImplType::GetId());
+		return VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VolumeNodeBaseType::GetId());
 	}
 
 private:

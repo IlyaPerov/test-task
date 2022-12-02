@@ -17,7 +17,7 @@ namespace internal
 //
 
 template<typename KeyT, typename ValueHolderT>
-class VolumeNodeBaseImpl :
+class VolumeNodeBase :
 	public IVolumeNode<KeyT, ValueHolderT>,
 	public INodeEventsSubscription<IVolumeNode<KeyT, ValueHolderT>>,
 	public INodeId,

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Types.h"
-#include "VolumeNodeBaseImpl.h"
+#include "VolumeNodeBase.h"
 #include "NodeProxyBase.h"
 
 namespace vs
@@ -17,14 +17,14 @@ class VolumeNodeImpl;
 template<typename KeyT, typename ValueHolderT>
 class VolumeNodeProxyImpl final :
 	public NodeProxyBaseImpl<
-		internal::VolumeNodeBaseImpl,
+		internal::VolumeNodeBase,
 		VolumeNodeImpl,
 		KeyT,
 		ValueHolderT>
 {
 public:
 	using NodeProxyBaseImplType = NodeProxyBaseImpl<
-		internal::VolumeNodeBaseImpl,
+		internal::VolumeNodeBase,
 		VolumeNodeImpl,
 		KeyT, ValueHolderT>;
 

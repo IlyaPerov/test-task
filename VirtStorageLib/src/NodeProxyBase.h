@@ -6,8 +6,6 @@
 #include "NodeLifespan.h"
 #include "ActionOnRemovedNodeException.h"
 
-#include "./intfs/ProxyProvider.h"
-
 namespace vs
 {
 

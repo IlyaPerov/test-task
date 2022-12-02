@@ -6,10 +6,10 @@
 
 #include "VolumeNode.h"
 #include "VirtualNode.h"
+#include "intfs/ProxyProvider.h"
 
-#include "VirtualNodeBaseImpl.h"
+#include "VirtualNodeBase.h"
 #include "NodeIdImpl.h"
-#include "ActionOnRemovedNodeException.h"
 #include "VirtualNodeMounter.h"
 #include "VirtualNodeProxyImpl.h"
 
@@ -27,14 +27,14 @@ namespace internal
 
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
-	public NodeIdImpl<VirtualNodeBaseImpl<KeyT, ValueHolderT>>,
+	public NodeIdImpl<VirtualNodeBase<KeyT, ValueHolderT>>,
 	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVirtualNode<KeyT, ValueHolderT>>,
 	private utils::NameRegistrar
 {
 
 public:
-	using VirtualNodeBaseImplType = NodeIdImpl < VirtualNodeBaseImpl<KeyT, ValueHolderT> >;
+	using VirtualNodeBaseType = NodeIdImpl < VirtualNodeBase<KeyT, ValueHolderT> >;
 	using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
 	using VirtualNodeImplPtr = std::shared_ptr<VirtualNodeImplType>;
 
@@ -211,7 +211,7 @@ public:
 	// IProxyProvider
 	NodePtr GetProxy() override
 	{
-		return VirtualNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VirtualNodeBaseImplType::GetId());
+		return VirtualNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VirtualNodeBaseType::GetId());
 	}
 
 private:

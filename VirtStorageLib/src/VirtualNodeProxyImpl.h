@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VirtualNodeBaseImpl.h"
+#include "VirtualNodeBase.h"
 #include "NodeProxyBase.h"
 
 namespace vs
@@ -15,14 +15,14 @@ class VirtualNodeImpl;
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeProxyImpl final :
 	public NodeProxyBaseImpl<
-	internal::VirtualNodeBaseImpl,
+	internal::VirtualNodeBase,
 	VirtualNodeImpl,
 	KeyT,
 	ValueHolderT>
 {
 public:
 	using NodeProxyBaseImplType = NodeProxyBaseImpl<
-		internal::VirtualNodeBaseImpl,
+		internal::VirtualNodeBase,
 		VirtualNodeImpl,
 		KeyT, ValueHolderT>;
 
