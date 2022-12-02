@@ -127,9 +127,9 @@ public:
 	}
 
 	// INodeId
-	NodeId GetId() const override
+	NodeId GetId() const noexcept override
 	{
-		return GetOwner()->GetId();
+		return m_nodeId;
 	}
 
 

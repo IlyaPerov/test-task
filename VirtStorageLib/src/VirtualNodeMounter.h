@@ -46,16 +46,12 @@ public:
 	using Ptr = std::shared_ptr<NodeMountAssistant>;
 
 public:
-	~NodeMountAssistant() override
-	{
-	}
-
 	static Ptr CreateInstance(VirtualNodeImplType* owner, VolumeNodePtr volumeNode)
 	{
 		return std::shared_ptr<NodeMountAssistant>(new NodeMountAssistant(owner, volumeNode));
 	}
 
-	VolumeNodePtr GetNode()
+	VolumeNodePtr GetNode() const
 	{
 		return m_volumeNode;
 	}
@@ -135,7 +131,7 @@ private:
 		auto virtualNodeToMountTo = GetOrCreateVirtualChildWithName(node->GetName());
 
 		virtualNodeToMountTo->Mount(node);
-		m_nodes.push_back({ virtualNodeToMountTo, node });
+		m_nodes.emplace_back(std::move(virtualNodeToMountTo), std::move(node));
 	}
 
 	void OnNodeRemoved(VolumeNodePtr node) override
@@ -174,8 +170,7 @@ private:
 				auto virtualNodeAcceptor = GetOrCreateVirtualChildWithName(node->GetName());
 
 				virtualNodeAcceptor->Mount(node);
-				m_nodes.push_back({ virtualNodeAcceptor, node });
-
+				m_nodes.emplace_back(std::move(virtualNodeAcceptor), std::move(node));
 			});
 	}
 
@@ -197,6 +192,10 @@ private:
 
 	struct VirtualNodeForVolumeNode
 	{
+		VirtualNodeForVolumeNode(VirtualNodePtr&& virtualNode, VolumeNodePtr&& volumeNode):
+			virtualNode {std::move(virtualNode)}, volumeNode {std::move(volumeNode)}
+		{}
+
 		VirtualNodePtr virtualNode;
 		VolumeNodePtr volumeNode;
 	};
@@ -204,7 +203,7 @@ private:
 	VirtualNodeImplType* m_owner = nullptr;
 	VolumeNodePtr m_volumeNode;
 
-	std::vector<VirtualNodeForVolumeNode> m_nodes;
+	std::list<VirtualNodeForVolumeNode> m_nodes;
 	std::atomic<MountState> m_state{ MountState::NeedToMount };
 	Cookie m_subscriptionCookie{ INVALID_COOKIE };
 
@@ -248,33 +247,26 @@ public:
 
 	void RemoveNode(VolumeNodePtr volumeNode)
 	{
-		NodeId nodeId;
-		try
-		{
-			nodeId = dynamic_cast<INodeId*>(volumeNode.get())->GetId();
-		}
-		catch (ActionOnRemovedNodeException&)
-		{
-			return;
-		}
+		const NodeId nodeToRemoveId = GetNodeId(volumeNode.get());
 
 		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
 		{
 			auto& assistant = *it;
-			try
-			{
-				if (nodeId == dynamic_cast<INodeId*>(assistant->GetNode().get())->GetId())
-				{
-					assistant->Unmount();
-					m_assistants.erase(it);
-					Invalidate(InvalidReason::NodeUnmouted);
-					return;
-				}
-			}
-			catch (ActionOnRemovedNodeException&)
+			const auto assistantNode = assistant->GetNode();
+			if (!assistantNode)
 			{
 				Invalidate(InvalidReason::NodeUnmouted);
+				continue;
 			}
+
+			if (nodeToRemoveId == GetNodeId(assistantNode.get()))
+			{
+				assistant->Unmount();
+				m_assistants.erase(it);
+				Invalidate(InvalidReason::NodeUnmouted);
+				return;
+			}
+
 		}
 	}
 
@@ -401,10 +393,11 @@ public:
 
 		for (auto& assistant : m_assistants)
 		{
+			const auto node = assistant->GetNode();
 			KeysSet currentKeysCache;
 			try
 			{
-				assistant->GetNode()->ForEachKeyValue(
+				node->ForEachKeyValue(
 					[this, &f, &keysCache, &currentKeysCache](const KeyT& key, ValueHolderT& value)
 					{
 						if (keysCache.count(key))
@@ -413,14 +406,16 @@ public:
 						currentKeysCache.insert(key);
 					});
 			}
-			catch (ActionOnRemovedNodeException&)
+			catch (const ActionOnRemovedNodeException& e)
 			{
+				if (e.TargetNodeId() != GetNodeId(node.get()))
+					throw; // it's not our node exception, rethrow it to caller
+
 				Invalidate(InvalidReason::NodeUnmouted);
 				continue;
 			}
 
 			keysCache.insert(currentKeysCache.begin(), currentKeysCache.end());
-
 		}
 
 	}
@@ -524,17 +519,19 @@ private:
 
 	static NodeId GetNodeId(VolumeNodeType* volumeNode)
 	{
-		return dynamic_cast<INodeId*>(volumeNode)->GetId();
+		const auto nodeIdIntf = dynamic_cast<INodeId*>(volumeNode);
+		assert(nodeIdIntf);
+		return nodeIdIntf->GetId();
 	}
 
-	VolumeNodePtr FindMountedNode(NodeId id)
+	VolumeNodePtr FindMountedNode(NodeId id) const
 	{
 		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[this, id](auto& assistant)
 			{
 				try
 				{
-					auto node = assistant->GetNode();
+					const auto node = assistant->GetNode();
 					if (!node)
 						return false;
 					if (GetNodeId(node.get()) == id)

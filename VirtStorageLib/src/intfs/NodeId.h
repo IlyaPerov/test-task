@@ -12,7 +12,7 @@ struct INodeId
 {
 	virtual ~INodeId() = default;
 
-	virtual NodeId GetId() const = 0;
+	virtual NodeId GetId() const noexcept = 0;
 };
 
 } //namespace internal

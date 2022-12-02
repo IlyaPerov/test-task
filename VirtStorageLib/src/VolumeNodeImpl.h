@@ -8,7 +8,6 @@
 #include "Types.h"
 #include "VolumeNode.h"
 #include "intfs/ProxyProvider.h"
-#include "intfs/NodeInternal.h"
 
 #include "VolumeNodeBase.h"
 #include "VolumeNodeProxyImpl.h"

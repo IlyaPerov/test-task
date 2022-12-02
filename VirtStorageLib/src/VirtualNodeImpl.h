@@ -1,7 +1,5 @@
 #pragma once
 
-#include <list>
-#include <cassert>
 #include <algorithm>
 
 #include "VolumeNode.h"
@@ -209,7 +207,6 @@ public:
 	}
 
 private:
-	//using ChildrenContainerType = std::list<VirtualNodeImplPtr>;
 	using ChildrenContainerType = std::unordered_map<std::string, VirtualNodeImplPtr>;
 	enum class NodeKind
 	{
@@ -258,8 +255,6 @@ private:
 		const auto& node = it->second;
 		if (node->IsEntirelyUnmounted())
 		{
-			//TODO: refactor
-			//RemoveName(node->m_name);
 			it = m_children.erase(it);
 			return true;
 		}
