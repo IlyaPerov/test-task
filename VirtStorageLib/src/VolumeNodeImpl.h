@@ -14,8 +14,6 @@
 #include "VolumeNodeProxyImpl.h"
 #include "NodeIdImpl.h"
 
-#include "utils/NameRegistrar.h"
-
 namespace vs
 {
 
@@ -30,8 +28,7 @@ template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final :
 	public NodeIdImpl<VolumeNodeBase<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
-	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>,
-	private utils::NameRegistrar
+	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>
 {
 
 public:
@@ -154,21 +151,24 @@ public:
 	}
 
 	// INodeContainer
-	NodePtr AddChild(const std::string& name) override
+	NodePtr InsertChild(const std::string& name) override
 	{
 		NodePtr newChild;
 
 		{
 			std::lock_guard lock(m_nodeMutex);
 
-			if (TryAddName(name) == false)
-			{
-				//TODO: exception?
-				return nullptr;
-			}
+			// "Find-then-insert" instead of "insert-then-test" to avoid
+			// possibly redundant calls CreateInstance
 
-			m_children.push_back(CreateInstance(name, GetPriority()));
-			newChild = m_children.back()->GetProxy();
+			auto it = m_children.find(name);
+			if (it != m_children.end())
+				newChild = it->second->GetProxy();
+			else
+			{
+				const auto insertRes = m_children.insert({ name, CreateInstance(name, m_priority) });
+				newChild = insertRes.first->second->GetProxy();
+			}
 		}
 
 		m_subscriberHolder.OnNodeAdded(newChild);
@@ -181,9 +181,9 @@ public:
 		std::shared_lock lock(m_nodeMutex);
 
 		std::for_each(m_children.begin(), m_children.end(),
-			[&f](const auto& node)
+			[&f](const auto& nameNodePair)
 			{
-				f(node->GetProxy());
+				f(nameNodePair.second->GetProxy());
 			});
 	}
 
@@ -192,13 +192,13 @@ public:
 		std::shared_lock lock(m_nodeMutex);
 
 		auto findIt = std::find_if(m_children.begin(), m_children.end(),
-			[&f](const auto& node)
+			[&f](const auto& nameNodePair)
 			{
-				return f(node->GetProxy());
+				return f(nameNodePair.second->GetProxy());
 			});
 
 		if (findIt != m_children.end())
-			return (*findIt)->GetProxy();
+			return findIt->second->GetProxy();
 
 		return nullptr;
 	}
@@ -209,15 +209,9 @@ public:
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			const auto& node = *it;
+			const auto& node = it->second;
 			if (f(node->GetProxy()))
-			{
-				//TODO: consider to remove the event
-				//m_subscriberHolder.OnNodeRemoved(node);
-
-				RemoveName((*it)->m_name);
 				it = m_children.erase(it);
-			}
 			else
 				it++;
 		}
@@ -242,7 +236,7 @@ public:
 
 private:
 	using DictType = std::unordered_map<KeyT, ValueHolderT>;
-	using ContainerType = std::list<VolumeNodeImplPtr>;
+	using ContainerType = std::unordered_map<std::string, VolumeNodeImplPtr>;
 
 
 private:

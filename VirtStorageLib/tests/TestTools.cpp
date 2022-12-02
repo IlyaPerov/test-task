@@ -76,7 +76,7 @@ void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
 
 	for (const auto& c : from.children)
 	{
-		const auto child = node->AddChild(c.name);
+		const auto child = node->InsertChild(c.name);
 		FillNode(child, c);
 	}
 }

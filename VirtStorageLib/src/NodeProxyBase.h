@@ -100,9 +100,9 @@ public:
 	}
 
 	// INodeContainer
-	NodePtr AddChild(const std::string& name) override
+	NodePtr InsertChild(const std::string& name) override
 	{
-		return GetOwner()->AddChild(name);
+		return GetOwner()->InsertChild(name);
 	}
 
 	void ForEachChild(const ForEachFunctorType& f) override

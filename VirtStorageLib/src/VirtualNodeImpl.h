@@ -13,8 +13,6 @@
 #include "VirtualNodeMounter.h"
 #include "VirtualNodeProxyImpl.h"
 
-#include "utils/NameRegistrar.h"
-
 namespace vs
 {
 
@@ -29,8 +27,7 @@ template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
 	public NodeIdImpl<VirtualNodeBase<KeyT, ValueHolderT>>,
 	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>,
-	public IProxyProvider<IVirtualNode<KeyT, ValueHolderT>>,
-	private utils::NameRegistrar
+	public IProxyProvider<IVirtualNode<KeyT, ValueHolderT>>
 {
 
 public:
@@ -118,7 +115,7 @@ public:
 	}
 
 	// INodeContainer
-	NodePtr AddChild(const std::string& name) override
+	NodePtr InsertChild(const std::string& name) override
 	{
 		return AddNode(name, NodeKind::UserCreated);
 	}
@@ -132,7 +129,7 @@ public:
 			if (StripIfUnmounted(it))
 				continue;
 
-			const auto& node = *it;
+			const auto& node = it->second;
 			f(node->GetProxy());
 			it++;
 		}
@@ -147,7 +144,7 @@ public:
 			if (StripIfUnmounted(it))
 				continue;
 
-			const auto& node = *it;
+			const auto& node = it->second;
 			if (f(node->GetProxy()))
 				return node->GetProxy();
 
@@ -166,12 +163,9 @@ public:
 			if (StripIfUnmounted(it))
 				continue;
 
-			const auto& node = *it;
+			const auto& node = it->second;
 			if (f(node->GetProxy()))
-			{
-				RemoveName(node->m_name);
 				it = m_children.erase(it);
-			}
 			else
 				it++;
 		}
@@ -215,7 +209,8 @@ public:
 	}
 
 private:
-	using ChildrenContainerType = std::list<VirtualNodeImplPtr>;
+	//using ChildrenContainerType = std::list<VirtualNodeImplPtr>;
+	using ChildrenContainerType = std::unordered_map<std::string, VirtualNodeImplPtr>;
 	enum class NodeKind
 	{
 		UserCreated,
@@ -231,6 +226,7 @@ private:
 
 	static VirtualNodeImplPtr CreateInstance(std::string name, NodeKind kind)
 	{
+		// cannot use make_shared without ugly tricks because of private ctor
 		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(std::move(name), kind));
 	}
 
@@ -246,23 +242,24 @@ private:
 	{
 		m_mounter.Mount();
 
-		if (TryAddName(name) == false)
-		{
-			//TODO: exception?
-			assert(false);
-			return nullptr;
-		}
+		// "Find-then-insert" instead of "insert-then-test" to avoid
+		// possibly redundant calls CreateInstance
 
-		m_children.push_back(CreateInstance(name, kind));
-		return m_children.back()->GetProxy();
+		auto it = m_children.find(name);
+		if (it != m_children.end())
+			return it->second->GetProxy();
+
+		const auto insertRes = m_children.insert({ name, CreateInstance(name, kind) });
+		return insertRes.first->second->GetProxy();
 	}
 
 	bool StripIfUnmounted(typename ChildrenContainerType::iterator& it)
 	{
-		if ((*it)->IsEntirelyUnmounted())
+		const auto& node = it->second;
+		if (node->IsEntirelyUnmounted())
 		{
 			//TODO: refactor
-			RemoveName((*it)->m_name);
+			//RemoveName(node->m_name);
 			it = m_children.erase(it);
 			return true;
 		}

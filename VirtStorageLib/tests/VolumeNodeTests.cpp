@@ -37,7 +37,7 @@ TEST_F(VolumeNodeTest, AddChild_Remove_Find)
 
     for (auto i = 0; i < 3; i++)
     {
-        auto child = root->AddChild("Child" + std::to_string(i + 1));
+        auto child = root->InsertChild("Child" + std::to_string(i + 1));
         EXPECT_NE(child, nullptr);
     }
 
@@ -73,7 +73,7 @@ TEST_F(VolumeNodeTest, RemovedChild_Produces_Exception)
 
     for (auto i = 0; i < 3; i++)
     {
-        auto child = root->AddChild("Child" + std::to_string(i + 1));
+        auto child = root->InsertChild("Child" + std::to_string(i + 1));
         EXPECT_NE(child, nullptr);
     }
 
