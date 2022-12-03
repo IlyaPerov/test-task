@@ -11,6 +11,7 @@
 
 #include "NodeIdImpl.h"
 #include "ActionOnRemovedNodeException.h"
+#include "InsertInEmptyVirtualNodeException.h"
 
 #include "utils/NonCopyable.h"
 
@@ -25,6 +26,23 @@ namespace internal
 // Forward declarations
 template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl;
+
+#define REMOVED_NODE_EXCEPTION_TRY \
+try \
+{
+
+#define REMOVED_NODE_EXCEPTION_CATCH \
+} \
+catch (const ActionOnRemovedNodeException& e) \
+{
+
+#define REMOVED_NODE_EXCEPTION_CATCH_END \
+}
+
+#define REMOVED_NODE_EXCEPTION_EMPTY_HANDLER \
+REMOVED_NODE_EXCEPTION_CATCH \
+REMOVED_NODE_EXCEPTION_CATCH_END
+
 
 //
 // NodeMountAssistant
@@ -72,14 +90,9 @@ public:
 		if (!m_volumeNode)
 			return MINIMAL_PRIORITY;
 
-		try
-		{
+		REMOVED_NODE_EXCEPTION_TRY
 			return m_volumeNode->GetPriority();
-		}
-		catch (ActionOnRemovedNodeException&)
-		{
-			;
-		}
+		REMOVED_NODE_EXCEPTION_EMPTY_HANDLER
 
 		return MINIMAL_PRIORITY;
 	}
@@ -103,15 +116,11 @@ public:
 		assert(m_state == MountState::Mounted);
 		assert(m_subscriptionCookie != INVALID_COOKIE);
 
-		try
-		{
+		REMOVED_NODE_EXCEPTION_TRY
 			std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
 			assert(subscription);
 			subscription->UnregisterSubscriber(m_subscriptionCookie);
-		}
-		catch (ActionOnRemovedNodeException&)
-		{
-		}
+		REMOVED_NODE_EXCEPTION_EMPTY_HANDLER
 
 		UnmountChildren();
 		m_volumeNode = nullptr;
@@ -209,6 +218,11 @@ private:
 
 };
 
+#define REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER \
+REMOVED_NODE_EXCEPTION_CATCH \
+Invalidate(InvalidReason::NodeUnmouted); \
+REMOVED_NODE_EXCEPTION_CATCH_END
+
 //
 // VirtualNodeMounter
 // 
@@ -278,8 +292,25 @@ public:
 		if (Replace(key, std::forward<T>(value)))
 			return;
 
-		if (m_assistants.size() > 0)
-			m_assistants.front()->GetNode()->Insert(key, std::forward<T>(value));
+		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
+		{
+			auto& assistant = *it;
+			const auto assistantNode = assistant->GetNode();
+
+			REMOVED_NODE_EXCEPTION_TRY
+				assistantNode->Insert(key, std::forward<T>(value));
+			REMOVED_NODE_EXCEPTION_CATCH
+				// failed to insert because of removed node,
+				// continue searching
+				continue; 
+			REMOVED_NODE_EXCEPTION_CATCH_END
+
+			// successful insertion; return 
+			return;
+		}
+
+		// we have to notify a caller that insertion cannot be done: no actual mounted nodes
+		throw InsertInEmptyVirtualNodeException();
 	}
 
 	void Erase(const KeyT& key)
@@ -288,14 +319,9 @@ public:
 
 		for (auto& assistant : m_assistants)
 		{
-			try
-			{
+			REMOVED_NODE_EXCEPTION_TRY
 				assistant->GetNode()->Erase(key);
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-			}
+			REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER
 		}
 	}
 
@@ -305,15 +331,10 @@ public:
 
 		for (auto& assistant : m_assistants)
 		{
-			try
-			{
+			REMOVED_NODE_EXCEPTION_TRY
 				if (assistant->GetNode()->Find(key, value))
 					return true;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-			}
+			REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER
 		}
 
 		return false;
@@ -325,15 +346,10 @@ public:
 
 		for (auto& assistant : m_assistants)
 		{
-			try
-			{
+			REMOVED_NODE_EXCEPTION_TRY
 				if (assistant->GetNode()->Contains(key))
 					return true;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-			}
+			REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER
 		}
 
 		return false;
@@ -344,23 +360,28 @@ public:
 	{
 		Validate();
 
-		for (auto& assistant : m_assistants)
+		if (Contains(key))
+			return false;
+
+		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
 		{
-			try
-			{
-				if (assistant->GetNode()->Contains(key))
-					return false;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-			}
+			auto& assistant = *it;
+			const auto assistantNode = assistant->GetNode();
+
+			REMOVED_NODE_EXCEPTION_TRY
+				assistantNode->TryInsert(key, std::forward<T>(value));
+			REMOVED_NODE_EXCEPTION_CATCH
+				// failed to insert because of removed node,
+				// continue searching
+				continue;
+			REMOVED_NODE_EXCEPTION_CATCH_END
+
+			// successful insertion; return 
+			return true;
 		}
 
-		if (m_assistants.size() > 0)
-			m_assistants.front()->GetNode()->TryInsert(key, std::forward<T>(value));
-
-		return true;
+		// we have to notify a caller that insertion cannot be done: no actual mounted nodes
+		throw InsertInEmptyVirtualNodeException();
 	}
 
 	template<typename T>
@@ -370,15 +391,10 @@ public:
 
 		for (auto& assistant : m_assistants)
 		{
-			try
-			{
+			REMOVED_NODE_EXCEPTION_TRY
 				if (assistant->GetNode()->Replace(key, std::forward<T>(value)))
 					return true;
-			}
-			catch (ActionOnRemovedNodeException&)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-			}
+			REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER
 		}
 
 		return false;
@@ -395,8 +411,7 @@ public:
 		{
 			const auto node = assistant->GetNode();
 			KeysSet currentKeysCache;
-			try
-			{
+			REMOVED_NODE_EXCEPTION_TRY
 				node->ForEachKeyValue(
 					[this, &f, &keysCache, &currentKeysCache](const KeyT& key, ValueHolderT& value)
 					{
@@ -405,15 +420,13 @@ public:
 						f(key, value);
 						currentKeysCache.insert(key);
 					});
-			}
-			catch (const ActionOnRemovedNodeException& e)
-			{
+			REMOVED_NODE_EXCEPTION_CATCH
 				if (e.TargetNodeId() != GetNodeId(node.get()))
 					throw; // it's not our node exception, rethrow it to caller
 
 				Invalidate(InvalidReason::NodeUnmouted);
 				continue;
-			}
+			REMOVED_NODE_EXCEPTION_CATCH_END
 
 			keysCache.insert(currentKeysCache.begin(), currentKeysCache.end());
 		}
@@ -529,18 +542,13 @@ private:
 		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
 			[this, id](auto& assistant)
 			{
-				try
-				{
+				REMOVED_NODE_EXCEPTION_TRY
 					const auto node = assistant->GetNode();
 					if (!node)
 						return false;
 					if (GetNodeId(node.get()) == id)
 						return true;
-				}
-				catch (ActionOnRemovedNodeException&)
-				{
-					Invalidate(InvalidReason::NodeUnmouted);
-				}
+				REMOVED_NODE_EXCEPTION_INVALIDATE_HANDLER
 
 				return false;
 			});
