@@ -32,6 +32,22 @@ TEST_F(VolumeNodeTest, Root)
     EXPECT_EQ(root->GetPriority(), cPriority);
 }
 
+TEST_F(VolumeNodeTest, Recreate_Root)
+{
+    const auto root = m_volume.GetRoot();
+
+    auto child = root->InsertChild("child");
+    EXPECT_EQ(child->GetName(), "child");
+
+    // recreates a root in volume
+    // that makes previous hierarchy "non-existent"
+	m_volume.CreateRoot("NewRoot", 100); 
+
+    EXPECT_THROW(child->GetName(), ActionOnRemovedNodeException);
+
+    EXPECT_EQ(m_volume.GetRoot()->GetName(), "NewRoot");
+}
+
 TEST_F(VolumeNodeTest, InsertChild_Remove_Find)
 {
     auto root = m_volume.GetRoot();

@@ -105,6 +105,26 @@ TEST_F(VirtualNodeTest, MountNode)
     EXPECT_TRUE(IsEqual(virtRoot, cRawRoot1));
 }
 
+TEST_F(VirtualNodeTest, MountNode_To_Some_Child)
+{
+    const auto virtRoot = m_storage.GetRoot();
+
+    const auto volume1 = CreateVolume(cRawRoot1, 100);
+    EXPECT_TRUE(IsEqual(volume1.GetRoot(), cRawRoot1));
+
+    const auto virtChild = virtRoot->InsertChild("newchild1")->InsertChild("newchild12");
+    virtChild->Mount(volume1.GetRoot());
+    EXPECT_TRUE(IsEqual(virtChild, cRawRoot1));
+
+    RawNode rawRoot;
+    rawRoot.children.push_back({ "newchild1" });
+    auto& newChild1 = rawRoot.children.back();
+    newChild1.children.push_back({ "newchild12" });
+    auto& newChild12 = newChild1.children.back();
+    newChild12.Merge(cRawRoot1);
+	EXPECT_TRUE(IsEqual(virtRoot, rawRoot));
+}
+
 TEST_F(VirtualNodeTest, Remove_Child_After_Mount)
 {
     const auto virtRoot = m_storage.GetRoot();

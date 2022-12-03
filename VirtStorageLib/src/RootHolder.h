@@ -39,7 +39,6 @@ public:
 	{
 	}
 
-
 	// Creates a new root; frees the previous one if it exists
 	template<typename... ArgsT>
 	void CreateRoot(ArgsT&&... args)
@@ -68,10 +67,7 @@ private:
 	void FreeRootImpl()
 	{
 		if (m_root)
-		{
-			m_root->MakeOrphan();
 			m_root = nullptr;
-		}
 	}
 
 	NodeImplPtr m_root;
