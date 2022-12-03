@@ -115,7 +115,7 @@ public:
 	// INodeContainer
 	NodePtr InsertChild(const std::string& name) override
 	{
-		return AddNode(name, NodeKind::UserCreated);
+		return InsertNode(name, NodeKind::UserCreated);
 	}
 
 	void ForEachChild(const ForEachFunctorType& f) override
@@ -210,9 +210,9 @@ public:
 		m_mounter.UnmountIf(f);
 	}
 
-	NodePtr AddChildForMounting(const std::string& name)
+	NodePtr InsertChildForMounting(const std::string& name)
 	{
-		return AddNode(name, NodeKind::ForMounting);
+		return InsertNode(name, NodeKind::ForMounting);
 	}
 
 	// IProxyProvider
@@ -250,7 +250,7 @@ private:
 		return m_mounter.IsEntirelyUnmounted();
 	}
 
-	NodePtr AddNode(const std::string& name, NodeKind kind)
+	NodePtr InsertNode(const std::string& name, NodeKind kind)
 	{
 		m_mounter.Mount();
 

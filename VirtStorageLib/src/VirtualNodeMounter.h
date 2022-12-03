@@ -137,7 +137,7 @@ private:
 	// INodeEvents
 	void OnNodeAdded(VolumeNodePtr node) override
 	{
-		auto virtualNodeToMountTo = GetOrCreateVirtualChildWithName(node->GetName());
+		auto virtualNodeToMountTo = m_owner->InsertChildForMounting(node->GetName());
 
 		virtualNodeToMountTo->Mount(node);
 		m_nodes.emplace_back(std::move(virtualNodeToMountTo), std::move(node));
@@ -150,33 +150,12 @@ private:
 
 
 private:
-
-	VirtualNodePtr FindVirtualChildWithName(const std::string& name)
-	{
-		return m_owner->FindChildIf(
-			[&name](auto virtualChild)
-			{
-				if (virtualChild->GetName() == name)
-				return true;
-		return false;
-			});
-	}
-
-	VirtualNodePtr GetOrCreateVirtualChildWithName(const std::string& name)
-	{
-		auto virtualChild = FindVirtualChildWithName(name);
-
-		return virtualChild != nullptr ?
-			virtualChild :
-			m_owner->AddChildForMounting(name);
-	}
-
 	void MountChildren()
 	{
 		m_volumeNode->ForEachChild(
 			[this](auto node)
 			{
-				auto virtualNodeAcceptor = GetOrCreateVirtualChildWithName(node->GetName());
+				auto virtualNodeAcceptor = m_owner->InsertChildForMounting(node->GetName());
 
 				virtualNodeAcceptor->Mount(node);
 				m_nodes.emplace_back(std::move(virtualNodeAcceptor), std::move(node));
@@ -250,39 +229,7 @@ public:
 	VirtualNodeMounter(VirtualNodeImplType* owner) : m_owner{ owner }
 	{
 	}
-
-	void AddNode(VolumeNodePtr volumeNode)
-	{
-		auto assistant = NodeMountAssistantType::CreateInstance(m_owner, volumeNode);
-		m_assistants.push_back(assistant);
-		assistant->Mount();
-		Invalidate(InvalidReason::NodeMounted);
-	}
-
-	void RemoveNode(VolumeNodePtr volumeNode)
-	{
-		const NodeId nodeToRemoveId = GetNodeId(volumeNode.get());
-
-		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
-		{
-			auto& assistant = *it;
-			const auto assistantNode = assistant->GetNode();
-			if (!assistantNode)
-			{
-				Invalidate(InvalidReason::NodeUnmouted);
-				continue;
-			}
-
-			if (nodeToRemoveId == GetNodeId(assistantNode.get()))
-			{
-				assistant->Unmount();
-				m_assistants.erase(it);
-				Invalidate(InvalidReason::NodeUnmouted);
-				return;
-			}
-
-		}
-	}
+		
 
 	template<typename T>
 	void Insert(const KeyT& key, T&& value)
@@ -529,6 +476,39 @@ private:
 		NodeUnmouted,
 		NodeMounted
 	};
+
+	void AddNode(VolumeNodePtr volumeNode)
+	{
+		auto assistant = NodeMountAssistantType::CreateInstance(m_owner, volumeNode);
+		m_assistants.push_back(assistant);
+		assistant->Mount();
+		Invalidate(InvalidReason::NodeMounted);
+	}
+
+	void RemoveNode(VolumeNodePtr volumeNode)
+	{
+		const NodeId nodeToRemoveId = GetNodeId(volumeNode.get());
+
+		for (auto it = m_assistants.begin(); it != m_assistants.end(); it++)
+		{
+			auto& assistant = *it;
+			const auto assistantNode = assistant->GetNode();
+			if (!assistantNode)
+			{
+				Invalidate(InvalidReason::NodeUnmouted);
+				continue;
+			}
+
+			if (nodeToRemoveId == GetNodeId(assistantNode.get()))
+			{
+				assistant->Unmount();
+				m_assistants.erase(it);
+				Invalidate(InvalidReason::NodeUnmouted);
+				return;
+			}
+
+		}
+	}
 
 	static NodeId GetNodeId(VolumeNodeType* volumeNode)
 	{
