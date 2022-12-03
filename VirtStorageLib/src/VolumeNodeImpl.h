@@ -186,11 +186,22 @@ public:
 			});
 	}
 
+	NodePtr FindChild(const std::string& name) override
+	{
+		std::shared_lock lock(m_nodeMutex);
+		const auto it = m_children.find(name);
+
+		if (it != m_children.end())
+			return it->second;
+
+		return nullptr;
+	}
+
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
 		std::shared_lock lock(m_nodeMutex);
 
-		auto findIt = std::find_if(m_children.begin(), m_children.end(),
+		const auto findIt = std::find_if(m_children.begin(), m_children.end(),
 			[&f](const auto& nameNodePair)
 			{
 				return f(nameNodePair.second->GetProxy());

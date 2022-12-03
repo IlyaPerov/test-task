@@ -109,6 +109,11 @@ public:
 	{
 		GetOwner()->ForEachChild(f);
 	}
+
+	NodePtr FindChild(const std::string& name) override
+	{
+		return GetOwner()->FindChild(name);
+	}
 	
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{

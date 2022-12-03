@@ -133,6 +133,21 @@ public:
 		}
 	}
 
+	NodePtr FindChild(const std::string& name) override
+	{
+		m_mounter.Mount();
+
+		auto it = m_children.find(name);
+
+		if (it != m_children.end())
+		{
+			if (!StripIfUnmounted(it))
+				return it->second;
+		}
+
+		return nullptr;
+	}
+
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
 		m_mounter.Mount();

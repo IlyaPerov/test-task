@@ -264,3 +264,69 @@ TEST_F(VirtualNodeTest, UnmountNode)
 
 	EXPECT_TRUE(IsEqual(virtRoot, cRawRoot2));
 }
+
+TEST_F(VirtualNodeTest, Insert_TryInsert_Erase_Find_Contains_Replace)
+{
+    const auto virtRoot = m_storage.GetRoot();
+
+    const auto volume1 = CreateVolume(cRawRoot1, 200);
+    const auto volume2 = CreateVolume(cRawRoot2, 100);
+
+    virtRoot->Mount(volume1.GetRoot());
+    virtRoot->Mount(volume2.GetRoot());
+
+    const auto child = virtRoot->FindChild("child");
+
+    ValueVariant value;
+    EXPECT_TRUE(child->Find(1, value));
+
+    const auto& childFromRoot1 = cRawRoot1.children.front();
+    EXPECT_EQ(value, childFromRoot1.values.find(1)->second);
+
+	child->Insert(500, "NewValue");
+    EXPECT_TRUE(child->Find(500, value));
+    EXPECT_EQ(value, ValueVariant{ "NewValue" });
+
+    child->Insert(500, "NewValue2");
+    EXPECT_TRUE(child->Find(500, value));
+    EXPECT_EQ(value, ValueVariant{ "NewValue2" });
+
+    EXPECT_FALSE(child->TryInsert(500, "Another value"));
+    EXPECT_TRUE(child->Find(500, value));
+    EXPECT_TRUE(child->Contains(500));
+    EXPECT_EQ(value, ValueVariant{ "NewValue2" });
+
+    EXPECT_TRUE(child->TryInsert(5000, 3.14));
+    EXPECT_TRUE(child->Find(5000, value));
+    EXPECT_EQ(value, ValueVariant{ 3.14 });
+
+    EXPECT_TRUE(child->Replace(5000, 111));
+    EXPECT_TRUE(child->Find(5000, value));
+    EXPECT_EQ(value, ValueVariant{ 111 });
+
+    EXPECT_FALSE(child->Replace(5001, 111));
+
+    child->Erase(5000);
+    EXPECT_FALSE(child->Contains(5000));
+}
+
+TEST_F(VirtualNodeTest, Insert_TryInsert_For_Empty_Node_Produces_Exception)
+{
+    const auto virtRoot = m_storage.GetRoot();
+
+    auto volume1 = CreateVolume(cRawRoot1, 200);
+    auto volume2 = CreateVolume(cRawRoot2, 100);
+
+    virtRoot->Mount(volume1.GetRoot());
+    virtRoot->Mount(volume2.GetRoot());
+
+    EXPECT_TRUE(virtRoot->TryInsert(500, "NewValue"));
+    virtRoot->Insert(5000, "Another value");
+
+    // free volumes that leads to unmounting
+	volume1.FreeRoot();
+    volume2.FreeRoot();
+
+    EXPECT_THROW(virtRoot->Insert(5001, "Another value"), InsertInEmptyVirtualNodeException);
+    EXPECT_THROW(virtRoot->TryInsert(5002, "Another value"), InsertInEmptyVirtualNodeException);
+}
