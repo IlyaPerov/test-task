@@ -4,6 +4,9 @@ using namespace std;
 using namespace vs;
 
 
+namespace test_tools
+{
+
 //
 // RawNode
 //
@@ -18,8 +21,8 @@ void RawNode::Merge(const RawNode& rhs)
 			[&](const auto& child)
 			{
 				if (child.name == rhsChild.name)
-					return true;
-				return false;
+				return true;
+		return false;
 			});
 
 		if (foundChild != children.end())
@@ -29,7 +32,30 @@ void RawNode::Merge(const RawNode& rhs)
 	}
 }
 
-bool IsEqual(const RawNode& lhs, const RawNode& rhs, bool ignoreRootName = false)
+bool RawNode::operator == (const RawNode& rhs) const
+{
+	return IsEqual(*this, rhs);
+}
+
+bool RawNode::operator != (const RawNode& rhs) const
+{
+	return !(*this == rhs);
+}
+
+//forward declarations
+void FillNode(const VolumeType::NodePtr& node, const RawNode& from);
+
+// CreateVolume
+VolumeType CreateVolume(const RawNode& raw, vs::Priority priority)
+{
+	VolumeType res{ raw.name, priority };
+	FillNode(res.GetRoot(), raw);
+
+	return res;
+}
+
+// internal
+bool IsEqual(const RawNode& lhs, const RawNode& rhs, bool ignoreRootName)
 {
 	if ((ignoreRootName || (lhs.name == rhs.name))
 		&& (lhs.values == rhs.values)
@@ -60,15 +86,6 @@ bool IsEqual(const RawNode& lhs, const RawNode& rhs, bool ignoreRootName = false
 	return false;
 }
 
-bool RawNode::operator == (const RawNode& rhs) const
-{
-	return IsEqual(*this, rhs);
-}
-bool RawNode::operator != (const RawNode& rhs) const
-{
-	return !(*this == rhs);
-}
-
 void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
 {
 	for (const auto& v : from.values)
@@ -81,57 +98,4 @@ void FillNode(const VolumeType::NodePtr& node, const RawNode& from)
 	}
 }
 
-// CreateVolume
-
-VolumeType CreateVolume(const RawNode& raw, vs::Priority priority)
-{
-	VolumeType res{ raw.name, priority };
-	FillNode(res.GetRoot(), raw);
-
-	return res;
-}
-
-// ToRawNode
-template<typename NodeT>
-RawNode ToRawNodeImpl(const NodeT& node)
-{
-	RawNode res {node->GetName()};
-	node->ForEachKeyValue(
-		[&res](const auto& key, auto& value)
-		{
-			res.values[key] = value;
-		}
-	);
-
-	node->ForEachChild(
-		[&res](auto child)
-		{
-			res.children.push_back(ToRawNodeImpl(child));
-		}
-	);
-	return res;
-}
-
-RawNode ToRawNode(const VolumeType::NodePtr& node)
-{
-	return ToRawNodeImpl(node);
-}
-
-// IsEqual
-template <typename NodeT>
-bool IsEqualImpl(const NodeT& node, const RawNode& raw)
-{
-	return IsEqual(ToRawNodeImpl(node), raw, true);
-}
-
-// IsEqual
-bool IsEqual(const VolumeType::NodePtr& node, const RawNode& raw)
-{
-	return IsEqualImpl(node, raw);
-}
-
-// IsEqual
-bool IsEqual(const StorageType::NodePtr& node, const RawNode& raw)
-{
-	return IsEqualImpl(node, raw);
-}
+} //namespace test_tools

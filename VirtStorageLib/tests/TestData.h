@@ -2,6 +2,6 @@
 
 #include "TestTools.h"
 
-extern const RawNode cRawRoot1;
-extern const RawNode cRawRoot2;
-extern const RawNode cRawRoot12;
+extern const test_tools::RawNode cRawRoot1;
+extern const test_tools::RawNode cRawRoot2;
+extern const test_tools::RawNode cRawRoot12;

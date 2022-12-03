@@ -8,6 +8,7 @@
 
 using namespace std;
 using namespace vs;
+using namespace test_tools;
 
 class VolumeNodeTest : public ::testing::Test
 {

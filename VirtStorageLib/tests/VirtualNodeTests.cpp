@@ -7,6 +7,7 @@
 
 using namespace std;
 using namespace vs;
+using namespace test_tools;
 
 class VirtualNodeTest : public ::testing::Test
 {
@@ -186,6 +187,43 @@ TEST_F(VirtualNodeTest, Mount_Several_Nodes)
     root.Merge(cRawRoot1);
 
     EXPECT_TRUE(IsEqual(virtRoot, root));
+}
+
+TEST_F(VirtualNodeTest, Mount_To_Several_Storages)
+{
+	const StorageType virtStorage1{ "VirtRoot1" };
+	const StorageType virtStorage2{ "VirtRoot2" };
+
+    const auto virtRoot1 = virtStorage1.GetRoot();
+    const auto virtRoot2 = virtStorage2.GetRoot();
+
+    RawNode rawRoot = cRawRoot1;
+	auto volume = CreateVolume(rawRoot, 100);
+
+    virtRoot1->Mount(volume.GetRoot());
+    virtRoot2->Mount(volume.GetRoot());
+
+    EXPECT_TRUE(IsEqual(virtRoot1, virtRoot2));
+
+    const auto childToChange = "child";
+    const auto newValue = "new value!";
+
+    // change child/values from one virtual node...
+	virtRoot1->FindChildIf(
+        [&childToChange](auto node)
+        {
+            return node->GetName() == childToChange;
+        }
+    )->Insert(1000, "new value!");
+
+    std::find_if(rawRoot.children.begin(), rawRoot.children.end(),
+        [&](const auto& child)
+        {
+            return child.name == childToChange;
+        })->values[1000] = newValue;
+
+	EXPECT_TRUE(IsEqual(virtRoot1, rawRoot));
+	EXPECT_TRUE(IsEqual(virtRoot1, virtRoot2)); //... and see these changes in another virtual node
 }
 
 TEST_F(VirtualNodeTest, UnmountNode)

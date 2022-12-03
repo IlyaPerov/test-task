@@ -1,4 +1,5 @@
 #include "TestData.h"
+using namespace test_tools;
 
 const RawNode cRawRoot1 =
 {
