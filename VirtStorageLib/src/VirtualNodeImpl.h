@@ -53,7 +53,7 @@ public:
 
 	static VirtualNodeImplPtr CreateInstance(std::string name)
 	{
-		return CreateInstance(std::move(name), NodeKind::UserCreated);
+		return CreateInstance(std::move(name), NodeKind::Ordinary);
 	}
 
 	// INode
@@ -115,12 +115,12 @@ public:
 	// INodeContainer
 	NodePtr InsertChild(const std::string& name) override
 	{
-		return InsertNode(name, NodeKind::UserCreated);
+		return InsertNode(name, NodeKind::Ordinary);
 	}
 
 	void ForEachChild(const ForEachFunctorType& f) override
 	{
-		m_mounter.Mount();
+		std::lock_guard lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
@@ -135,7 +135,7 @@ public:
 
 	NodePtr FindChild(const std::string& name) override
 	{
-		m_mounter.Mount();
+		std::lock_guard lock(m_nodeMutex);
 
 		auto it = m_children.find(name);
 
@@ -150,7 +150,7 @@ public:
 
 	NodePtr FindChildIf(const FindIfFunctorType& f) override
 	{
-		m_mounter.Mount();
+		std::lock_guard lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
@@ -169,7 +169,7 @@ public:
 
 	void RemoveChildIf(const RemoveIfFunctorType& f)  override
 	{
-		m_mounter.Mount();
+		std::lock_guard lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
@@ -225,7 +225,7 @@ private:
 	using ChildrenContainerType = std::unordered_map<std::string, VirtualNodeImplPtr>;
 	enum class NodeKind
 	{
-		UserCreated,
+		Ordinary,
 		ForMounting
 	};
 
@@ -244,7 +244,8 @@ private:
 
 	bool IsEntirelyUnmounted()
 	{
-		if (m_kind == NodeKind::UserCreated)
+		// "ordinary" nodes cannot be "entirely unmounted" 
+		if (m_kind == NodeKind::Ordinary)
 			return false;
 
 		return m_mounter.IsEntirelyUnmounted();
@@ -252,14 +253,17 @@ private:
 
 	NodePtr InsertNode(const std::string& name, NodeKind kind)
 	{
-		m_mounter.Mount();
+		std::lock_guard lock(m_nodeMutex);
 
 		// "Find-then-insert" instead of "insert-then-test" to avoid
 		// possibly redundant calls CreateInstance
 
 		auto it = m_children.find(name);
 		if (it != m_children.end())
-			return it->second->GetProxy();
+		{
+			if (!StripIfUnmounted(it))
+				return it->second->GetProxy();
+		}
 
 		const auto insertRes = m_children.insert({ name, CreateInstance(name, kind) });
 		return insertRes.first->second->GetProxy();
@@ -282,7 +286,8 @@ private:
 	std::string m_name;
 	ChildrenContainerType m_children;
 	const NodeKind m_kind;
-	mutable VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
+	mutable virtual_node_details::VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
+	std::mutex m_nodeMutex;
 };
 
 } //namespace internal
