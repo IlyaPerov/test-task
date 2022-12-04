@@ -265,6 +265,30 @@ TEST_F(VirtualNodeTest, UnmountNode)
 	EXPECT_TRUE(IsEqual(virtRoot, cRawRoot2));
 }
 
+TEST_F(VirtualNodeTest, Mount_RemoveChild_Then_Mount_Again)
+{
+    const auto virtRoot = m_storage.GetRoot();
+
+    const auto volume1 = CreateVolume(cRawRoot1, 100);
+    virtRoot->Mount(volume1.GetRoot());
+	EXPECT_TRUE(IsEqual(virtRoot, volume1.GetRoot()));
+
+    volume1.GetRoot()->RemoveChildIf(
+        [](auto node)
+        {
+            return node->GetName() == "child";
+        }
+    );
+
+    const auto volume2 = CreateVolume(cRawRoot2, 200);
+    virtRoot->Mount(volume2.GetRoot());
+
+    RawNode rawRoot2{ cRawRoot2 };
+    rawRoot2.Merge(ToRawNode(volume1.GetRoot()));
+
+	EXPECT_TRUE(IsEqual(virtRoot, rawRoot2));
+}
+
 TEST_F(VirtualNodeTest, Insert_TryInsert_Erase_Find_Contains_Replace)
 {
     const auto virtRoot = m_storage.GetRoot();

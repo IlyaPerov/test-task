@@ -123,8 +123,8 @@ public:
 
 		REMOVED_NODE_EXCEPTION_TRY
 			std::shared_ptr<INodeEventsSubscription<VolumeNodeType>> subscription = std::dynamic_pointer_cast<INodeEventsSubscription<VolumeNodeType>>(m_volumeNode);
-		assert(subscription);
-		subscription->UnregisterSubscriber(m_subscriptionCookie);
+			assert(subscription);
+			subscription->UnregisterSubscriber(m_subscriptionCookie);
 		REMOVED_NODE_EXCEPTION_EMPTY_HANDLER
 
 		UnmountChildren();
@@ -164,8 +164,8 @@ private:
 			{
 				auto virtualNodeAcceptor = m_owner->InsertChildForMounting(node->GetName());
 
-		virtualNodeAcceptor->Mount(node);
-		m_nodes.emplace_back(std::move(virtualNodeAcceptor), std::move(node));
+				virtualNodeAcceptor->Mount(node);
+				m_nodes.emplace_back(std::move(virtualNodeAcceptor), std::move(node));
 			});
 	}
 
@@ -296,7 +296,7 @@ public:
 		return false;
 	}
 
-	bool Contains(const KeyT& key)
+	bool Contains(const KeyT& key) const
 	{
 		std::lock_guard lock(m_mutex);
 
@@ -384,11 +384,7 @@ public:
 		std::lock_guard m_lock(m_mutex);
 
 		if (FindMountedNode(node.get()))
-		{
-			// The node's already mounted
-			//TODO: exception?
 			return;
-		}
 
 		AddNode(node);
 	}
@@ -470,6 +466,7 @@ public:
 
 private:
 	using AssistantsContainer = std::list<NodeMountAssistantPtr>;
+
 	enum class InvalidReason : uint8_t
 	{
 		Valid = 0,
@@ -504,7 +501,6 @@ private:
 				DoUnmount(it);
 				return;
 			}
-
 		}
 	}
 
@@ -608,7 +604,7 @@ private:
 		return false;
 	}
 
-	bool ContainsImpl(const KeyT& key)
+	bool ContainsImpl(const KeyT& key) const
 	{
 		Validate();
 

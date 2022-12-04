@@ -115,7 +115,7 @@ public:
 	// INodeContainer
 	NodePtr InsertChild(const std::string& name) override
 	{
-		return InsertNode(name, NodeKind::Ordinary);
+		return InsertNode(name, m_kind);
 	}
 
 	void ForEachChild(const ForEachFunctorType& f) override
@@ -124,7 +124,7 @@ public:
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (StripIfUnmounted(it))
+			if (EraseIfUnmounted(it))
 				continue;
 
 			const auto& node = it->second;
@@ -141,7 +141,7 @@ public:
 
 		if (it != m_children.end())
 		{
-			if (!StripIfUnmounted(it))
+			if (!EraseIfUnmounted(it))
 				return it->second;
 		}
 
@@ -154,7 +154,7 @@ public:
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (StripIfUnmounted(it))
+			if (EraseIfUnmounted(it))
 				continue;
 
 			const auto& node = it->second;
@@ -173,7 +173,7 @@ public:
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (StripIfUnmounted(it))
+			if (EraseIfUnmounted(it))
 				continue;
 
 			const auto& node = it->second;
@@ -242,7 +242,7 @@ private:
 		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(std::move(name), kind));
 	}
 
-	bool IsEntirelyUnmounted()
+	bool IsEntirelyUnmounted() const
 	{
 		// "ordinary" nodes cannot be "entirely unmounted" 
 		if (m_kind == NodeKind::Ordinary)
@@ -261,7 +261,7 @@ private:
 		auto it = m_children.find(name);
 		if (it != m_children.end())
 		{
-			if (!StripIfUnmounted(it))
+			if (!EraseIfUnmounted(it))
 				return it->second->GetProxy();
 		}
 
@@ -269,7 +269,7 @@ private:
 		return insertRes.first->second->GetProxy();
 	}
 
-	bool StripIfUnmounted(typename ChildrenContainerType::iterator& it)
+	bool EraseIfUnmounted(typename ChildrenContainerType::iterator& it)
 	{
 		const auto& node = it->second;
 		if (node->IsEntirelyUnmounted())
@@ -286,7 +286,7 @@ private:
 	std::string m_name;
 	ChildrenContainerType m_children;
 	const NodeKind m_kind;
-	mutable virtual_node_details::VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
+	virtual_node_details::VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
 	std::mutex m_nodeMutex;
 };
 
