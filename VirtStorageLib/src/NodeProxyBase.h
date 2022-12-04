@@ -41,7 +41,25 @@ public:
 	using typename INodeContainer<NodeType>::FindIfFunctorType;
 	using typename INodeContainer<NodeType>::RemoveIfFunctorType;
 
-public:
+protected:
+	NodeProxyBaseImpl(NodeImplWeakPtr owner, NodeId nodeId) : m_owner{ owner }, m_nodeId{ nodeId }
+	{
+		static_assert(std::is_base_of_v<NodeType, BaseType>, "BaseT parameter must derive from INode");
+		static_assert(std::is_base_of_v<INodeContainer<NodeType>, BaseType>, "BaseT parameter must derive from INodeLifespan");
+		static_assert(std::is_base_of_v<INodeId, BaseType>, "BaseT parameter must derive from INodeId");
+	}
+
+	NodeImplPtr GetOwner() const
+	{
+		auto owner = m_owner.lock();
+
+		if (!owner)
+			throw ActionOnRemovedNodeException(m_nodeId);
+
+		return owner;
+	}
+
+private:
 
 	// INode
 	const std::string& GetName() const override
@@ -135,25 +153,6 @@ public:
 	NodeId GetId() const noexcept override
 	{
 		return m_nodeId;
-	}
-
-
-protected:
-	NodeProxyBaseImpl(NodeImplWeakPtr owner, NodeId nodeId) : m_owner{ owner }, m_nodeId{ nodeId }
-	{
-		static_assert(std::is_base_of_v<NodeType, BaseType>, "BaseT parameter must derive from INode");
-		static_assert(std::is_base_of_v<INodeContainer<NodeType>, BaseType>, "BaseT parameter must derive from INodeLifespan");
-		static_assert(std::is_base_of_v<INodeId, BaseType>, "BaseT parameter must derive from INodeId");
-	}
-
-	NodeImplPtr GetOwner() const
-	{
-		auto owner = m_owner.lock();
-
-		if (!owner)
-			throw ActionOnRemovedNodeException(m_nodeId);
-
-		return owner;
 	}
 
 private:
