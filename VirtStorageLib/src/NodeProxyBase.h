@@ -123,19 +123,24 @@ private:
 		return GetOwner()->InsertChild(name);
 	}
 
-	void ForEachChild(const ForEachFunctorType& f) override
+	void ForEachChild(const ForEachFunctorType& f) const override
 	{
 		GetOwner()->ForEachChild(f);
 	}
 
-	NodePtr FindChild(const std::string& name) override
+	NodePtr FindChild(const std::string& name) const override
 	{
 		return GetOwner()->FindChild(name);
 	}
 	
-	NodePtr FindChildIf(const FindIfFunctorType& f) override
+	NodePtr FindChildIf(const FindIfFunctorType& f) const override
 	{
 		return GetOwner()->FindChildIf(f);
+	}
+
+	void RemoveChild(const std::string& name) override
+	{
+		GetOwner()->RemoveChild(name);
 	}
 	
 	void RemoveChildIf(const RemoveIfFunctorType& f) override

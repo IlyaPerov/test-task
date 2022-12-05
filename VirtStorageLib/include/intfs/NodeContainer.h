@@ -20,9 +20,10 @@ struct INodeContainer
 	virtual ~INodeContainer() = default;
 
 	virtual NodePtr InsertChild(const std::string& name) = 0;
-	virtual void ForEachChild(const ForEachFunctorType& f) = 0;
-	virtual NodePtr FindChild(const std::string& name) = 0;
-	virtual NodePtr FindChildIf(const FindIfFunctorType& f) = 0;
+	virtual void ForEachChild(const ForEachFunctorType& f) const = 0;
+	virtual NodePtr FindChild(const std::string& name) const = 0;
+	virtual NodePtr FindChildIf(const FindIfFunctorType& f) const = 0;
+	virtual void RemoveChild(const std::string& name) = 0;
 	virtual void RemoveChildIf(const RemoveIfFunctorType& f) = 0;
 };
 

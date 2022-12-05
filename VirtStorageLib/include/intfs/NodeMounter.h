@@ -17,10 +17,10 @@ struct INodeMounter
 
 	virtual ~INodeMounter() = default;
 
-	virtual void Mount(MountableNodePtr node) = 0;
+	virtual bool Mount(MountableNodePtr node) = 0;
 	virtual void Unmount(MountableNodePtr node) = 0;
-	virtual void ForEachMounted(const ForEachMountedFunctorType& f) = 0;
-	virtual MountableNodePtr FindMountedIf(const FindMountedIfFunctorType& f) = 0;
+	virtual void ForEachMounted(const ForEachMountedFunctorType& f) const = 0;
+	virtual MountableNodePtr FindMountedIf(const FindMountedIfFunctorType& f) const = 0;
 	virtual void UnmountIf(const UnmountIfFunctorType& f) = 0;
 };
 

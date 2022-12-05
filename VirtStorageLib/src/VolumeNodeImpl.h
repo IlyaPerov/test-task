@@ -175,7 +175,7 @@ public:
 		return newChild;
 	}
 
-	void ForEachChild(const ForEachFunctorType& f) override
+	void ForEachChild(const ForEachFunctorType& f) const  override
 	{
 		std::shared_lock lock(m_nodeMutex);
 
@@ -186,9 +186,10 @@ public:
 			});
 	}
 
-	NodePtr FindChild(const std::string& name) override
+	NodePtr FindChild(const std::string& name) const override
 	{
 		std::shared_lock lock(m_nodeMutex);
+
 		const auto it = m_children.find(name);
 
 		if (it != m_children.end())
@@ -197,7 +198,7 @@ public:
 		return nullptr;
 	}
 
-	NodePtr FindChildIf(const FindIfFunctorType& f) override
+	NodePtr FindChildIf(const FindIfFunctorType& f) const override
 	{
 		std::shared_lock lock(m_nodeMutex);
 
@@ -213,20 +214,41 @@ public:
 		return nullptr;
 	}
 
+	void RemoveChild(const std::string& name) override
+	{
+		std::lock_guard lock(m_nodeMutex);
+
+		auto it = m_children.find(name);
+		if (it == m_children.end())
+			return;
+
+		const auto node = it->second;
+		m_children.erase(it);
+
+		//TODO: consider calling outside lock
+		DoRemoveChild(node);
+	}
+
 	void RemoveChildIf(const RemoveIfFunctorType& f)  override
 	{
 		std::lock_guard lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			const auto& node = it->second;
+			const auto node = it->second;
 			if (f(node->GetProxy()))
+			{
 				it = m_children.erase(it);
+				//TODO: consider calling outside lock
+				DoRemoveChild(node);
+			}
 			else
 				it++;
 		}
 	}
 
+
+private:
 	// INodeEventsSubscription
 	Cookie RegisterSubscriber(NodeEventsPtr subscriber) override
 	{
@@ -282,6 +304,31 @@ private:
 	typename DictType::const_iterator FindImpl(const KeyT& key) const
 	{
 		return m_dict.find(key);
+	}
+
+	void MakeOrphan()
+	{
+		ContainerType childrenCopy;
+		{
+			std::lock_guard lock(m_nodeMutex);
+			childrenCopy = m_children;
+			m_children.clear();
+		}
+
+		for (const auto& nodeNamePair: childrenCopy)
+		{
+			const auto& node = nodeNamePair.second;
+			m_subscriberHolder.OnNodeRemoved(node);
+			node->MakeOrphan();
+		}
+	}
+	void DoRemoveChild(const VolumeNodeImplPtr& child)
+	{
+		m_subscriberHolder.OnNodeRemoved(child->GetProxy());
+
+		// It's needed because we want to notify "virtual clients" about removed nodes ASAP
+		// Actually different strategies can be applied for making "virtual clients" actual
+		child->MakeOrphan();
 	}
 
 private:
@@ -347,7 +394,7 @@ private:
 	SubscriberHolder m_subscriberHolder;
 
 	mutable std::shared_mutex m_dictMutex;
-	std::shared_mutex m_nodeMutex;
+	mutable std::shared_mutex m_nodeMutex;
 };
 
 } //namespace internal

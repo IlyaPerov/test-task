@@ -57,7 +57,7 @@ public:
 	NodePtr GetRoot() const
 	{
 		std::lock_guard lock(m_mutex);
-		return m_root ? m_root->GetProxy() : nullptr;
+		return m_root ? std::static_pointer_cast<IProxyProvider<NodeType>>(m_root)->GetProxy() : nullptr;
 	}
 
 private:

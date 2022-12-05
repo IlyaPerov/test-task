@@ -50,9 +50,9 @@ public:
 private:
 
 	// IVirtualNodeMounter
-	void Mount(VolumeNodePtr node) override
+	bool Mount(VolumeNodePtr node) override
 	{
-		NodeProxyBaseImplType::GetOwner()->Mount(node);
+		return NodeProxyBaseImplType::GetOwner()->Mount(node);
 	}
 
 	void Unmount(VolumeNodePtr node) override
@@ -60,12 +60,12 @@ private:
 		NodeProxyBaseImplType::GetOwner()->Unmount(node);
 	}
 
-	void ForEachMounted(const ForEachMountedFunctorType& f) override
+	void ForEachMounted(const ForEachMountedFunctorType& f) const override
 	{
 		NodeProxyBaseImplType::GetOwner()->ForEachMounted(f);
 	}
 
-	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) override
+	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) const override
 	{
 		return NodeProxyBaseImplType::GetOwner()->FindMountedIf(f);
 	}

@@ -18,6 +18,22 @@ namespace internal
 {
 
 //
+// IVirtualNodeImplInternal
+//
+
+template<typename KeyT, typename ValueHolderT>
+struct IVirtualNodeImplInternal
+{
+	using NodeType = IVirtualNode<KeyT, ValueHolderT>;
+	using NodePtr = typename INodeContainer<NodeType>::NodePtr;
+
+	virtual ~IVirtualNodeImplInternal() = default;
+
+	virtual void OnEntirelyOnmounted() = 0;
+	virtual NodePtr InsertChildForMounting(const std::string& name) = 0;
+};
+
+//
 // VirtualNodeImpl
 //
 
@@ -25,13 +41,15 @@ template<typename KeyT, typename ValueHolderT>
 class VirtualNodeImpl final :
 	public NodeIdImpl<VirtualNodeBase<KeyT, ValueHolderT>>,
 	public std::enable_shared_from_this<VirtualNodeImpl<KeyT, ValueHolderT>>,
-	public IProxyProvider<IVirtualNode<KeyT, ValueHolderT>>
+	public IProxyProvider<IVirtualNode<KeyT, ValueHolderT>>,
+	public IVirtualNodeImplInternal<KeyT, ValueHolderT>
 {
 
 public:
 	using VirtualNodeBaseType = NodeIdImpl < VirtualNodeBase<KeyT, ValueHolderT> >;
 	using VirtualNodeImplType = VirtualNodeImpl<KeyT, ValueHolderT>;
 	using VirtualNodeImplPtr = std::shared_ptr<VirtualNodeImplType>;
+	using VirtualNodeImplWeakPtr = std::weak_ptr<VirtualNodeImplType>;
 
 	using NodeType = IVirtualNode<KeyT, ValueHolderT>;
 	using typename INodeContainer<NodeType>::NodePtr;
@@ -53,7 +71,7 @@ public:
 
 	static VirtualNodeImplPtr CreateInstance(std::string name)
 	{
-		return CreateInstance(std::move(name), NodeKind::Ordinary);
+		return CreateInstance(std::move(name), NodeKind::Ordinary, {});
 	}
 
 	// INode
@@ -118,45 +136,35 @@ public:
 		return InsertNode(name, m_kind);
 	}
 
-	void ForEachChild(const ForEachFunctorType& f) override
+	void ForEachChild(const ForEachFunctorType& f) const override
 	{
-		std::lock_guard lock(m_nodeMutex);
+		std::shared_lock lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (EraseIfUnmounted(it))
-				continue;
-
 			const auto& node = it->second;
 			f(node->GetProxy());
 			it++;
 		}
 	}
 
-	NodePtr FindChild(const std::string& name) override
+	NodePtr FindChild(const std::string& name) const override
 	{
-		std::lock_guard lock(m_nodeMutex);
+		std::shared_lock lock(m_nodeMutex);
 
 		auto it = m_children.find(name);
-
 		if (it != m_children.end())
-		{
-			if (!EraseIfUnmounted(it))
-				return it->second;
-		}
+			return it->second;
 
 		return nullptr;
 	}
 
-	NodePtr FindChildIf(const FindIfFunctorType& f) override
+	NodePtr FindChildIf(const FindIfFunctorType& f) const override
 	{
-		std::lock_guard lock(m_nodeMutex);
+		std::shared_lock lock(m_nodeMutex);
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (EraseIfUnmounted(it))
-				continue;
-
 			const auto& node = it->second;
 			if (f(node->GetProxy()))
 				return node->GetProxy();
@@ -173,9 +181,6 @@ public:
 
 		for (auto it = m_children.begin(); it != m_children.end();)
 		{
-			if (EraseIfUnmounted(it))
-				continue;
-
 			const auto& node = it->second;
 			if (f(node->GetProxy()))
 				it = m_children.erase(it);
@@ -184,10 +189,17 @@ public:
 		}
 	}
 
-	// IVirtualNodeMounter
-	void Mount(VolumeNodePtr node) override
+	void RemoveChild(const std::string& name) override
 	{
-		m_mounter.Mount(node);
+		std::lock_guard lock(m_nodeMutex);
+
+		m_children.erase(name);
+	}
+
+	// IVirtualNodeMounter
+	bool Mount(VolumeNodePtr node) override
+	{
+		return m_mounter.Mount(node);
 	}
 
 	void Unmount(VolumeNodePtr node) override
@@ -195,12 +207,12 @@ public:
 		m_mounter.Unmount(node);
 	}
 
-	void ForEachMounted(const ForEachMountedFunctorType& f)  override
+	void ForEachMounted(const ForEachMountedFunctorType& f) const override
 	{
 		m_mounter.ForEachMounted(f);
 	}
 
-	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) override
+	VolumeNodePtr FindMountedIf(const FindMountedIfFunctorType& f) const override
 	{
 		return m_mounter.FindMountedIf(f);
 	}
@@ -210,15 +222,23 @@ public:
 		m_mounter.UnmountIf(f);
 	}
 
-	NodePtr InsertChildForMounting(const std::string& name)
-	{
-		return InsertNode(name, NodeKind::ForMounting);
-	}
-
+private:
 	// IProxyProvider
 	NodePtr GetProxy() override
 	{
 		return VirtualNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VirtualNodeBaseType::GetId());
+	}
+
+	// IVirtualNodeImplInternal
+	NodePtr InsertChildForMounting(const std::string& name) override
+	{
+		return InsertNode(name, NodeKind::ForMounting);
+	}
+
+	void OnEntirelyOnmounted()
+	{
+		if (auto parent = m_parent.lock())
+			parent->RemoveChild(GetName());
 	}
 
 private:
@@ -231,24 +251,15 @@ private:
 
 private:
 
-	VirtualNodeImpl(std::string name, NodeKind kind) :
-		m_name{ std::move(name) }, m_kind{ kind }, m_mounter{ this }
+	VirtualNodeImpl(std::string name, NodeKind kind, VirtualNodeImplWeakPtr parent) :
+		m_name{ std::move(name) }, m_kind{ kind }, m_mounter{ this }, m_parent { std::move(parent)}
 	{
 	}
 
-	static VirtualNodeImplPtr CreateInstance(std::string name, NodeKind kind)
+	static VirtualNodeImplPtr CreateInstance(std::string name, NodeKind kind, VirtualNodeImplWeakPtr parent)
 	{
 		// cannot use make_shared without ugly tricks because of private ctor
-		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(std::move(name), kind));
-	}
-
-	bool IsEntirelyUnmounted() const
-	{
-		// "ordinary" nodes cannot be "entirely unmounted" 
-		if (m_kind == NodeKind::Ordinary)
-			return false;
-
-		return m_mounter.IsEntirelyUnmounted();
+		return std::shared_ptr<VirtualNodeImpl>(new VirtualNodeImpl(std::move(name), kind, std::move(parent)));
 	}
 
 	NodePtr InsertNode(const std::string& name, NodeKind kind)
@@ -260,25 +271,10 @@ private:
 
 		auto it = m_children.find(name);
 		if (it != m_children.end())
-		{
-			if (!EraseIfUnmounted(it))
-				return it->second->GetProxy();
-		}
+			return it->second->GetProxy();
 
-		const auto insertRes = m_children.insert({ name, CreateInstance(name, kind) });
+		const auto insertRes = m_children.insert({ name, CreateInstance(name, kind, this->shared_from_this()) });
 		return insertRes.first->second->GetProxy();
-	}
-
-	bool EraseIfUnmounted(typename ChildrenContainerType::iterator& it)
-	{
-		const auto& node = it->second;
-		if (node->IsEntirelyUnmounted())
-		{
-			it = m_children.erase(it);
-			return true;
-		}
-
-		return false;
 	}
 
 private:
@@ -287,7 +283,8 @@ private:
 	ChildrenContainerType m_children;
 	const NodeKind m_kind;
 	virtual_node_details::VirtualNodeMounter<KeyT, ValueHolderT> m_mounter;
-	std::mutex m_nodeMutex;
+	VirtualNodeImplWeakPtr m_parent;
+	mutable std::shared_mutex m_nodeMutex;
 };
 
 } //namespace internal
