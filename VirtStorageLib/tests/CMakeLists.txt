@@ -32,7 +32,6 @@ set(SOURCES
 	TestToolsTests.cpp
 	VirtualNodeTests.cpp
 	VolumeNodeTests.cpp
-	../src/utils/NameRegistrar.cpp
 	../src/utils/UniqueIdGenerator.cpp)
 	
 enable_testing()

@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include "Types.h"
-#include "NodeLifespan.h"
+#include "intfs/NodeLifespan.h"
 #include "ActionOnRemovedNodeException.h"
 
 namespace vs

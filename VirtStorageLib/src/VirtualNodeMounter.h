@@ -8,7 +8,6 @@
 #include <shared_mutex>
 
 #include "VolumeNode.h"
-#include "NodeLifespan.h"
 #include "Types.h"
 
 #include "NodeIdImpl.h"
@@ -17,6 +16,7 @@
 
 #include "utils/NonCopyable.h"
 
+#include "intfs/NodeLifespan.h"
 #include "intfs/NodeEvents.h"
 
 namespace vs
