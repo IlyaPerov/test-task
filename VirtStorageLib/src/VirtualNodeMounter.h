@@ -439,6 +439,9 @@ public:
 				break;
 			}
 		}
+
+		if (m_assistants.size() == 0)
+			static_cast<VirtualNodeImplInternalType*>(m_owner)->OnEntirelyOnmounted();
 	}
 
 	void ForEachMounted(const ForEachMountedFunctorType& f) const override
@@ -476,18 +479,18 @@ public:
 	{
 		std::lock_guard m_lock(m_mutex);
 
-		auto it = std::find_if(m_assistants.begin(), m_assistants.end(),
-			[&f](auto assistant)
-			{
-				if (!assistant->HasAliveNode())
-					return false;
-				return f(assistant->GetNode());
-			});
+		for (auto it = m_assistants.begin(); it != m_assistants.end();)
+		{
+			auto& assistant = *it;
+			const auto assistantNode = assistant->GetNode();
+			if (f(assistantNode))
+				it = DoUnmount(it);
+			else
+				it++;
+		}
 
-		if (it == m_assistants.end())
-			return;
-
-		DoUnmount(it);
+		if (m_assistants.size() == 0)
+			static_cast<VirtualNodeImplInternalType*>(m_owner)->OnEntirelyOnmounted();
 	}
 
 	bool IsEntirelyUnmounted() const
@@ -592,13 +595,12 @@ private:
 		return m_invalidReason == InvalidReason::Valid;
 	}
 
-	void DoUnmount(typename AssistantsContainer::iterator it)
+	typename AssistantsContainer::iterator DoUnmount(typename AssistantsContainer::iterator it)
 	{
 		(*it)->Unmount();
-		m_assistants.erase(it);
-		if (m_assistants.size() == 0)
-			static_cast<VirtualNodeImplInternalType*>(m_owner)->OnEntirelyOnmounted();
 		Invalidate(InvalidReason::NodeUnmounted);
+
+		return m_assistants.erase(it);
 	}
 
 	template<typename T>

@@ -8,10 +8,12 @@
 #include "Types.h"
 #include "VolumeNode.h"
 #include "intfs/ProxyProvider.h"
+#include "intfs/NodeInternal.h"
 
 #include "VolumeNodeBase.h"
 #include "VolumeNodeProxyImpl.h"
 #include "NodeIdImpl.h"
+
 
 namespace vs
 {
@@ -27,6 +29,7 @@ template<typename KeyT, typename ValueHolderT>
 class VolumeNodeImpl final :
 	public NodeIdImpl<VolumeNodeBase<KeyT, ValueHolderT>>,
 	public IProxyProvider<IVolumeNode<KeyT, ValueHolderT>>,
+	public INodeInternal,
 	public std::enable_shared_from_this<VolumeNodeImpl<KeyT, ValueHolderT>>
 {
 
@@ -266,6 +269,23 @@ private:
 		return VolumeNodeProxyImpl<KeyT, ValueHolderT>::CreateInstance(this->shared_from_this(), VolumeNodeBaseType::GetId());
 	}
 
+	void MakeOrphan() override
+	{
+		ContainerType childrenCopy;
+		{
+			std::lock_guard lock(m_nodeMutex);
+			childrenCopy = m_children;
+			m_children.clear();
+		}
+
+		for (const auto& nodeNamePair : childrenCopy)
+		{
+			const auto& node = nodeNamePair.second;
+			m_subscriberHolder.OnNodeRemoved(node);
+			node->MakeOrphan();
+		}
+	}
+
 private:
 	using DictType = std::unordered_map<KeyT, ValueHolderT>;
 	using ContainerType = std::unordered_map<std::string, VolumeNodeImplPtr>;
@@ -306,22 +326,6 @@ private:
 		return m_dict.find(key);
 	}
 
-	void MakeOrphan()
-	{
-		ContainerType childrenCopy;
-		{
-			std::lock_guard lock(m_nodeMutex);
-			childrenCopy = m_children;
-			m_children.clear();
-		}
-
-		for (const auto& nodeNamePair: childrenCopy)
-		{
-			const auto& node = nodeNamePair.second;
-			m_subscriberHolder.OnNodeRemoved(node);
-			node->MakeOrphan();
-		}
-	}
 	void DoRemoveChild(const VolumeNodeImplPtr& child)
 	{
 		m_subscriberHolder.OnNodeRemoved(child->GetProxy());

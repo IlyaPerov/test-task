@@ -1,6 +1,8 @@
 #pragma once
 
 #include <mutex>
+#include "intfs/NodeInternal.h"
+#include "intfs/ProxyProvider.h"
 
 namespace vs
 {
@@ -17,13 +19,17 @@ public:
 
 public:
 	RootHolder() = default;
-	~RootHolder() = default;
+	~RootHolder()
+	{
+		FreeRootImpl();
+	}
 
 	RootHolder(const RootHolder&) = delete;
 	RootHolder& operator=(const RootHolder&) = delete;
 
 	RootHolder(RootHolder&& other) noexcept : m_root{ std::move(other.m_root) }
 	{
+		static_assert(std::is_base_of_v<IProxyProvider<NodeType>, NodeImplT>, "NodeImplT parameter must derive from IProxyProvider");
 	}
 
 	RootHolder& operator = (RootHolder&& other) noexcept
@@ -67,7 +73,14 @@ private:
 	void FreeRootImpl()
 	{
 		if (m_root)
+		{
+			if constexpr (std::is_base_of_v<INodeInternal, NodeImplType>)
+			{
+				auto rootInternal = std::static_pointer_cast<INodeInternal>(m_root);
+				rootInternal->MakeOrphan();
+			}
 			m_root = nullptr;
+		}
 	}
 
 	NodeImplPtr m_root;

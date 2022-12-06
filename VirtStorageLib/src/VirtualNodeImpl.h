@@ -222,6 +222,8 @@ public:
 		m_mounter.UnmountIf(f);
 	}
 
+	void MakeOrphan() {};
+
 private:
 	// IProxyProvider
 	NodePtr GetProxy() override
